@@ -70,10 +70,31 @@ shader ships with the build).
 6. The customer's bill is $35 minus $1.25 per unit you couldn't serve; a customer who got nothing
    at all leaves without paying. Customers who wait too long in line walk out.
 
-### Dropping in real models
+### Art: the Meshy models
 
-`GlbModelLoader` looks for `.glb` files under `Assets/StreamingAssets/Models/` and replaces the
-placeholder primitives when it finds them:
+The sample props made in Meshy (buffet food station, empty buffet tray, deep fryer body and basket,
+stove base and knob) are in the scene. The raw Meshy exports are ~1.9 million triangles each, so
+they were run through [`Tools/meshy_to_glb`](Tools/meshy_to_glb/README.md) to get ~60k-triangle
+`.glb` files with 2K textures; those live in `Assets/Resources/Models/` (plain git files, 6 to 10 MB each) and
+are imported by com.unity.cloud.gltfast. Raw Meshy exports should stay out of the repo or go through Git LFS.
+
+`DemoSceneBuilder` places them through `PropLibrary`, which scales each model to a target size and
+fits a collider:
+
+- one **Buffet Food Station** per tray slot, scaled so its counter sits at 0.9 m (the sneeze guard
+  has no collider so you can still reach the trays);
+- an **Empty Buffet Tray** on each station holding the coloured food fill, and a small one in the
+  player's hands when carrying food;
+- the **Fryer** (body + basket) and **Stove** (base + three knobs) as kitchen set dressing.
+
+If a model is missing from `Resources/Models`, the builder silently falls back to the primitive
+version, so the project never breaks on missing art. To add a prop: convert it with the tool, drop
+the `.glb` into `Assets/Resources/Models/`, and call `PropLibrary.Place("Name", ...)`.
+
+### Dropping in character models
+
+`GlbModelLoader` looks for `.glb` files under `Assets/StreamingAssets/Models/` at runtime and
+replaces the placeholder capsules when it finds them:
 
 - `Models/player.glb` for the player body
 - `Models/customer.glb` for customers
@@ -93,10 +114,12 @@ Assets/BuffetSim/Runtime
   Stations/     StorageBox, Dishwasher, TrashCan
   Player/       PlayerController, PlayerInteractor, PlayerInventory, PlayerHandVisual, InputReader
   UI/           HudController, FloatingText, Billboard
-  Models/       GlbModelLoader (gltfast)
-  Bootstrap/    DemoSceneBuilder, PrimitiveFactory, MaterialLibrary
+  Models/       GlbModelLoader (gltfast, runtime StreamingAssets loading)
+  Bootstrap/    DemoSceneBuilder, PropLibrary, PrimitiveFactory, MaterialLibrary
 Assets/BuffetSim/Editor
   BuffetSimMenu  "Buffet Sim" menu: Create Demo Scene, Create Default Config Assets
+Assets/Resources/Models   Converted Meshy props (.glb)
+Tools/meshy_to_glb        FBX -> decimated GLB converter for Meshy exports
 ```
 
 Systems talk through `GameEvents` rather than holding references to each other, per CLAUDE.md:
