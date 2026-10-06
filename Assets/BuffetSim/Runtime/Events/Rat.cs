@@ -61,7 +61,7 @@ namespace BuffetSim.Events
             if (_collider != null) _collider.enabled = false;
             if (_label != null) _label.text = "!";
 
-            GameEvents.RaiseNotice($"Tossed a rat outside. +${Bounty:0}");
+            GameEvents.RaiseNotice($"Tossed a rat outside. +${Bounty:0.00}");
             GameEvents.RaiseMoneyRecovered(Bounty, "rat bounty", transform.position);
         }
 

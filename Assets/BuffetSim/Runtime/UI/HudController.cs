@@ -132,7 +132,7 @@ namespace BuffetSim.UI
             _promptText = MakeText(root, "Prompt", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 140f), new Vector2(1200f, 60f), 28, TextAnchor.MiddleCenter, FontStyle.Bold);
             _logText = MakeText(root, "Log", new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f, 20f), new Vector2(1100f, 220f), 20, TextAnchor.LowerLeft, FontStyle.Normal);
             Text help = MakeText(root, "Help", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -20f), new Vector2(560f, 200f), 20, TextAnchor.UpperRight, FontStyle.Normal);
-            help.text = "WASD move  |  Mouse look  |  Shift sprint  |  Space jump\nE interact  |  Q drop  |  Esc free cursor (click to re-lock)\n\nLoop: buy food at the cooler (back), refill trays,\nclear plates from tables, load the dishwasher.";
+            help.text = "WASD move  |  Mouse look  |  Shift sprint  |  Space jump\nE interact / tackle  |  Q drop  |  Esc free cursor (click to re-lock)\n\nLoop: buy food at the cooler (back), refill trays,\nclear plates from tables, load the dishwasher.\nRed !! over a customer: they're about to run. Tackle with E.";
             help.color = new Color(1f, 1f, 1f, 0.8f);
             Text crosshair = MakeText(root, "Crosshair", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(40f, 40f), 28, TextAnchor.MiddleCenter, FontStyle.Normal);
             crosshair.text = "+";
@@ -253,6 +253,12 @@ namespace BuffetSim.UI
         private void OnDayPhaseChanged(DayClockSnapshot snapshot)
         {
             RefreshDayLine(snapshot);
+            // The scheduler aborts any running event at close without a final outcome, so drop its banner here.
+            if (snapshot.Phase == DayPhase.Closed && _eventText != null)
+            {
+                _eventText.text = string.Empty;
+                _eventTimer = 0f;
+            }
         }
 
         private void RefreshDayLine(DayClockSnapshot snapshot)

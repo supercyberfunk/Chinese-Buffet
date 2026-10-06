@@ -106,4 +106,4 @@ in isolation.
 - The event bus is `BuffetSim.Core.GameEvents`. Add a new event there rather than passing component references around.
 - Chaos events live in `Assets/BuffetSim/Runtime/Events`: one `ChaosEvent` ScriptableObject subclass (tunables) plus one `ChaosEventRunner` MonoBehaviour per event; `ChaosEventScheduler` picks them by weight, per-day cap and cooldown from `EconomyConfig`. New events go in the catalog, never in the scheduler.
 - The day cycle (`Day/DayClock`), satisfaction (`Economy/StoreReputation`) and the ledger only ever meet through the bus; the HUD listens and never calls into them.
-- `.glb` art goes in `Assets/StreamingAssets/Models/` and is loaded by `GlbModelLoader` (com.unity.cloud.gltfast).
+- Meshy props are converted to `.glb` with `Tools/meshy_to_glb`, live in `Assets/Resources/Models/` and are placed by `PropLibrary` (missing files fall back to primitives). Only the character models (`player.glb`, `customer.glb`) go in `Assets/StreamingAssets/Models/`, where `GlbModelLoader` loads them at runtime. Both paths use com.unity.cloud.gltfast.

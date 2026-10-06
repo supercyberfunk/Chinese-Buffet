@@ -66,6 +66,8 @@ namespace BuffetSim.Customers
             _labelFont = labelFont;
             _firstSpawnDelay = firstSpawnDelay;
             _timer = firstSpawnDelay;
+            // StoreReputation publishes its opening value before this spawner subscribes, so seed from the config.
+            if (context.Config != null) _reputation = Mathf.Clamp(context.Config.StartingReputation, 0f, 100f);
             _ready = true;
         }
 

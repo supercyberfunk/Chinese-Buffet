@@ -162,7 +162,7 @@ namespace BuffetSim.Economy
 
             _balance -= bribe;
             _expensesToday += bribe;
-            GameEvents.RaiseNotice($"{customerName} slipped. You slid them ${bribe:0.##} to not call anyone.");
+            GameEvents.RaiseNotice($"{customerName} slipped. You slid them ${bribe:0.00} to not call anyone.");
             Publish(new MoneyChange { Delta = -bribe, Balance = _balance, Reason = $"Hush money: {customerName}", WorldPosition = at, HasWorldPosition = true });
         }
 
