@@ -46,6 +46,57 @@ namespace BuffetSim.Economy
         [SerializeField] private float grabSeconds = 1.2f;
         [SerializeField] private float tableCheckInterval = 2f;
 
+        [Header("Day cycle")]
+        [Tooltip("Length of one business day in real seconds (the notes aim for a 12-15 minute day).")]
+        [SerializeField] private float dayLengthSeconds = 720f;
+        [Tooltip("The spawner stops letting customers in this many seconds before close.")]
+        [SerializeField] private float lastCallSeconds = 60f;
+        [Tooltip("After close, how long the stragglers get to finish before the lights go off.")]
+        [SerializeField] private float closingGraceSeconds = 45f;
+        [Tooltip("How long the end-of-day summary stays up before the next day opens.")]
+        [SerializeField] private float summarySeconds = 12f;
+        [Tooltip("Share of the day's profit the store keeps; the rest is the player's cut (60/40 in the notes).")]
+        [Range(0f, 1f)] [SerializeField] private float storeShare = 0.6f;
+
+        [Header("Customer satisfaction (0..100)")]
+        [SerializeField] private float startingReputation = 50f;
+        [Tooltip("Change when a customer pays in full.")]
+        [SerializeField] private float reputationPaidInFull = 2f;
+        [Tooltip("Change when a customer pays but was short-changed on units.")]
+        [SerializeField] private float reputationShortChanged = -1f;
+        [Tooltip("Change when a customer walks out of the line.")]
+        [SerializeField] private float reputationWalkout = -3f;
+        [Tooltip("Change when a customer slips on a spill.")]
+        [SerializeField] private float reputationSlip = -2f;
+        [Tooltip("Spawn interval multiplier at 0 satisfaction (slower) and at 100 (faster).")]
+        [SerializeField] private float spawnScaleAtZeroReputation = 1.5f;
+        [SerializeField] private float spawnScaleAtFullReputation = 0.7f;
+        [Tooltip("Bribe handed to a customer who slips on a spill so they don't call anyone.")]
+        [SerializeField] private float slipBribe = 10f;
+
+        [Header("Dine and dash")]
+        [Range(0f, 1f)] [SerializeField] private float dineAndDashChance = 0.25f;
+        [Tooltip("Seconds the dasher looks around nervously (the '!' and audio cue) before bolting.")]
+        [SerializeField] private float dineAndDashHesitation = 2f;
+        [Tooltip("Run speed of a dasher; the player walks at 4.5 and sprints at 7.5.")]
+        [SerializeField] private float dineAndDashSpeed = 3.8f;
+        [Tooltip("Extra on top of the bill when the player tackles a dasher (+10% in the notes).")]
+        [SerializeField] private float dineAndDashBonus = 0.10f;
+        [Tooltip("How long a knocked-out NPC stays on the floor before shuffling out.")]
+        [SerializeField] private float knockoutSeconds = 25f;
+        [Tooltip("How many coins a knocked-out dasher or thief sprays.")]
+        [SerializeField] private int coinsPerBurst = 8;
+
+        [Header("Chaos events")]
+        [Tooltip("The clock checks for a new event this often (30-60 s in the notes).")]
+        [SerializeField] private float eventCheckInterval = 40f;
+        [Range(0f, 1f)] [SerializeField] private float eventChance = 0.25f;
+        [SerializeField] private int maxEventsPerDay = 4;
+        [Tooltip("Minimum seconds between two events.")]
+        [SerializeField] private float eventMinGap = 45f;
+        [Tooltip("No events for this long after the doors open.")]
+        [SerializeField] private float eventQuietStart = 40f;
+
         public float StartingMoney => startingMoney;
         public float BaseCustomerBill => baseCustomerBill;
         public float WholesaleBoxCost => wholesaleBoxCost;
@@ -74,6 +125,34 @@ namespace BuffetSim.Economy
         public float EatSecondsPerUnit => eatSecondsPerUnit;
         public float GrabSeconds => grabSeconds;
         public float TableCheckInterval => tableCheckInterval;
+
+        public float DayLengthSeconds => dayLengthSeconds;
+        public float LastCallSeconds => lastCallSeconds;
+        public float ClosingGraceSeconds => closingGraceSeconds;
+        public float SummarySeconds => summarySeconds;
+        public float StoreShare => storeShare;
+
+        public float StartingReputation => startingReputation;
+        public float ReputationPaidInFull => reputationPaidInFull;
+        public float ReputationShortChanged => reputationShortChanged;
+        public float ReputationWalkout => reputationWalkout;
+        public float ReputationSlip => reputationSlip;
+        public float SpawnScaleAtZeroReputation => spawnScaleAtZeroReputation;
+        public float SpawnScaleAtFullReputation => spawnScaleAtFullReputation;
+        public float SlipBribe => slipBribe;
+
+        public float DineAndDashChance => dineAndDashChance;
+        public float DineAndDashHesitation => dineAndDashHesitation;
+        public float DineAndDashSpeed => dineAndDashSpeed;
+        public float DineAndDashBonus => dineAndDashBonus;
+        public float KnockoutSeconds => knockoutSeconds;
+        public int CoinsPerBurst => coinsPerBurst;
+
+        public float EventCheckInterval => eventCheckInterval;
+        public float EventChance => eventChance;
+        public int MaxEventsPerDay => maxEventsPerDay;
+        public float EventMinGap => eventMinGap;
+        public float EventQuietStart => eventQuietStart;
 
         public static EconomyConfig CreateDefault()
         {

@@ -10,7 +10,7 @@ namespace BuffetSim.Economy
     {
         private readonly float _deductionPerUnit;
 
-        public float BaseAmount { get; }
+        public float BaseAmount { get; private set; }
         public int UnitsWanted { get; }
         public int UnitsTaken { get; private set; }
         public int UnitsUnfulfilled { get; private set; }
@@ -21,6 +21,12 @@ namespace BuffetSim.Economy
             BaseAmount = baseAmount;
             UnitsWanted = unitsWanted;
             _deductionPerUnit = deductionPerUnit;
+        }
+
+        /// <summary>Scales the base value (a "Business is booming" suit pays 1.5x). Deductions are untouched.</summary>
+        public void ApplyMultiplier(float multiplier)
+        {
+            if (multiplier > 0f) BaseAmount *= multiplier;
         }
 
         public void RecordServed(int taken, int unfulfilled)

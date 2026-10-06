@@ -16,6 +16,9 @@ namespace BuffetSim.Customers
 
         public int Count => _line.Count;
 
+        /// <summary>Everyone currently in line, front first. Read-only; events use it to pick targets.</summary>
+        public IReadOnlyList<CustomerAgent> Customers => _line;
+
         public void Configure(Vector3 lineDirection, float slotSpacing)
         {
             direction = lineDirection.sqrMagnitude > 0.0001f ? lineDirection.normalized : Vector3.right;
