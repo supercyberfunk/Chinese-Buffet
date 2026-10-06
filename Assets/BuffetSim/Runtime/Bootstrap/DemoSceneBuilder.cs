@@ -1,6 +1,7 @@
 using BuffetSim.Buffet;
 using BuffetSim.Core;
 using BuffetSim.Customers;
+using BuffetSim.Day;
 using BuffetSim.Economy;
 using BuffetSim.Food;
 using BuffetSim.Models;
@@ -474,6 +475,18 @@ namespace BuffetSim.Bootstrap
             EconomyLedger ledger = ledgerGo.AddComponent<EconomyLedger>();
             ledger.Initialize(economyConfig);
 
+            // Satisfaction and the day clock come after the ledger and HUD (so both see the opening
+            // reputation and DayStarted(1)) and before the spawner (which defaults to Open / 50).
+            var reputationGo = new GameObject("Store Reputation");
+            reputationGo.transform.SetParent(transform, false);
+            StoreReputation reputation = reputationGo.AddComponent<StoreReputation>();
+            reputation.Initialize(economyConfig);
+
+            var clockGo = new GameObject("Day Clock");
+            clockGo.transform.SetParent(transform, false);
+            DayClock dayClock = clockGo.AddComponent<DayClock>();
+            dayClock.Initialize(economyConfig);
+
             var context = new CustomerContext
             {
                 Config = economyConfig,
@@ -490,7 +503,7 @@ namespace BuffetSim.Bootstrap
             CustomerSpawner spawner = customersGo.AddComponent<CustomerSpawner>();
             spawner.Initialize(context, foodCatalog, SpawnPoint, _font, 1.5f);
 
-            GameEvents.RaiseNotice($"Doors open. {foodCatalog.Unlocked.Count} foods unlocked, {_floor.TableCount} tables, ${economyConfig.StartingMoney:0.00} in the till.");
+            GameEvents.RaiseNotice($"{foodCatalog.Unlocked.Count} foods unlocked, {_floor.TableCount} tables, ${economyConfig.StartingMoney:0.00} in the till.");
         }
 
         private static void SetLayerRecursively(GameObject go, int layer)

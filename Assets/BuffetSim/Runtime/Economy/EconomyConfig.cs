@@ -77,7 +77,7 @@ namespace BuffetSim.Economy
         [Header("Dine and dash")]
         [Range(0f, 1f)] [SerializeField] private float dineAndDashChance = 0.25f;
         [Tooltip("Seconds the dasher looks around nervously (the '!' and audio cue) before bolting.")]
-        [SerializeField] private float dineAndDashHesitation = 2f;
+        [SerializeField] private float dineAndDashHesitation = 3f;
         [Tooltip("Run speed of a dasher; the player walks at 4.5 and sprints at 7.5.")]
         [SerializeField] private float dineAndDashSpeed = 3.8f;
         [Tooltip("Extra on top of the bill when the player tackles a dasher (+10% in the notes).")]

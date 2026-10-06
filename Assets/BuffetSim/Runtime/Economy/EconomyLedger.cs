@@ -5,26 +5,35 @@ namespace BuffetSim.Economy
 {
     /// <summary>
     /// Owns the store's money. Nothing else mutates the balance: customers publish receipts,
-    /// stations publish purchase requests, and this component answers through the event bus.
+    /// stations publish purchase requests, thieves publish theft requests, coins publish recoveries,
+    /// and this component answers through the event bus. At the end of each day it splits the
+    /// profit between the store and the player's own cash (the 60/40 from the notes).
     /// </summary>
     public sealed class EconomyLedger : MonoBehaviour
     {
         [SerializeField] private EconomyConfig config;
 
         private float _balance;
+        private float _playerCash;
         private float _revenueToday;
         private float _expensesToday;
         private float _deductionsToday;
         private int _customersServed;
         private int _customersLost;
+        private int _dineAndDashesToday;
+        private int _dashersCaughtToday;
+        private float _reputation;
         private bool _initialized;
 
         public float Balance => _balance;
+        /// <summary>The player's own money, paid out of each day's profit. Never spent by the store.</summary>
+        public float PlayerCash => _playerCash;
 
         public void Initialize(EconomyConfig economyConfig)
         {
             config = economyConfig;
             _balance = config.StartingMoney;
+            _reputation = config.StartingReputation;
             _initialized = true;
             Publish(new MoneyChange { Delta = 0f, Balance = _balance, Reason = "Opening float" });
         }
@@ -35,6 +44,13 @@ namespace BuffetSim.Economy
             GameEvents.CustomerLost += OnCustomerLost;
             GameEvents.PurchaseRequested += OnPurchaseRequested;
             GameEvents.DishesBroken += OnDishesBroken;
+            GameEvents.MoneyRecovered += OnMoneyRecovered;
+            GameEvents.TheftRequested += OnTheftRequested;
+            GameEvents.CustomerSlipped += OnCustomerSlipped;
+            GameEvents.DineAndDashResolved += OnDineAndDashResolved;
+            GameEvents.DayStarted += OnDayStarted;
+            GameEvents.DayEnded += OnDayEnded;
+            GameEvents.ReputationChanged += OnReputationChanged;
         }
 
         private void OnDisable()
@@ -43,6 +59,13 @@ namespace BuffetSim.Economy
             GameEvents.CustomerLost -= OnCustomerLost;
             GameEvents.PurchaseRequested -= OnPurchaseRequested;
             GameEvents.DishesBroken -= OnDishesBroken;
+            GameEvents.MoneyRecovered -= OnMoneyRecovered;
+            GameEvents.TheftRequested -= OnTheftRequested;
+            GameEvents.CustomerSlipped -= OnCustomerSlipped;
+            GameEvents.DineAndDashResolved -= OnDineAndDashResolved;
+            GameEvents.DayStarted -= OnDayStarted;
+            GameEvents.DayEnded -= OnDayEnded;
+            GameEvents.ReputationChanged -= OnReputationChanged;
         }
 
         private void OnCustomerPaid(CustomerReceipt receipt)
@@ -99,6 +122,135 @@ namespace BuffetSim.Economy
             Publish(new MoneyChange { Delta = -penalty, Balance = _balance, Reason = "Broken dishes", WorldPosition = at, HasWorldPosition = true });
         }
 
+        /// <summary>Coins picked up off the floor go straight back into the till and count as revenue.</summary>
+        private void OnMoneyRecovered(float amount, string reason, Vector3 at)
+        {
+            if (!_initialized || amount <= 0f) return;
+            _balance += amount;
+            _revenueToday += amount;
+            Publish(new MoneyChange { Delta = amount, Balance = _balance, Reason = $"Recovered: {reason}", WorldPosition = at, HasWorldPosition = true });
+        }
+
+        /// <summary>A thief asks for money; they get at most what is in the till and the request carries the answer.</summary>
+        private void OnTheftRequested(TheftRequest request)
+        {
+            if (!_initialized || request == null || request.Taken > 0f) return;
+            float taken = Mathf.Clamp(request.RequestedAmount, 0f, _balance);
+            request.Taken = taken;
+            if (taken <= 0f)
+            {
+                GameEvents.RaiseNotice($"{request.Thief} went for the till, but it's empty.");
+                return;
+            }
+
+            _balance -= taken;
+            _expensesToday += taken;
+            GameEvents.RaiseNotice($"{request.Thief} grabbed ${taken:0.00} from the till!");
+            Publish(new MoneyChange { Delta = -taken, Balance = _balance, Reason = $"Stolen by {request.Thief}", WorldPosition = request.WorldPosition, HasWorldPosition = true });
+        }
+
+        /// <summary>Hush money for a customer who slipped on a spill, paid out of the till but never below zero.</summary>
+        private void OnCustomerSlipped(string customerName, Vector3 at)
+        {
+            if (!_initialized) return;
+            float bribe = Mathf.Clamp(config.SlipBribe, 0f, _balance);
+            if (bribe <= 0f)
+            {
+                GameEvents.RaiseNotice($"{customerName} slipped. The till is empty, so all you could offer was an apology.");
+                return;
+            }
+
+            _balance -= bribe;
+            _expensesToday += bribe;
+            GameEvents.RaiseNotice($"{customerName} slipped. You slid them ${bribe:0.##} to not call anyone.");
+            Publish(new MoneyChange { Delta = -bribe, Balance = _balance, Reason = $"Hush money: {customerName}", WorldPosition = at, HasWorldPosition = true });
+        }
+
+        private void OnDineAndDashResolved(string customerName, bool caught, float amount)
+        {
+            if (!_initialized) return;
+            _dineAndDashesToday++;
+            if (caught)
+            {
+                // The money itself arrives as coins through MoneyRecovered.
+                _dashersCaughtToday++;
+            }
+            else
+            {
+                _customersLost++;
+                GameEvents.RaiseNotice($"{customerName} dined and dashed with ${amount:0.00}");
+            }
+            PublishSnapshot();
+        }
+
+        private void OnReputationChanged(float value, float delta, string reason)
+        {
+            _reputation = value;
+        }
+
+        private void OnDayStarted(int day)
+        {
+            if (!_initialized) return;
+            ResetDayCounters();
+            PublishSnapshot();
+        }
+
+        /// <summary>
+        /// Closes the books: profit is revenue minus expenses; when positive, the player's share
+        /// leaves the till and goes into their own cash, the store keeps the rest. Loss days pay nothing.
+        /// </summary>
+        private void OnDayEnded(int day)
+        {
+            if (!_initialized) return;
+
+            float profit = _revenueToday - _expensesToday;
+            float playerShare = 0f;
+            float storeShare = 0f;
+            if (profit > 0f)
+            {
+                playerShare = profit * (1f - Mathf.Clamp01(config.StoreShare));
+                storeShare = profit - playerShare;
+                _balance -= playerShare;
+                _playerCash += playerShare;
+            }
+
+            var summary = new DaySummary
+            {
+                Day = day,
+                Revenue = _revenueToday,
+                Expenses = _expensesToday,
+                Deductions = _deductionsToday,
+                Profit = profit,
+                StoreShare = storeShare,
+                PlayerShare = playerShare,
+                PlayerCashTotal = _playerCash,
+                CustomersServed = _customersServed,
+                CustomersLost = _customersLost,
+                DineAndDashes = _dineAndDashesToday,
+                DashersCaught = _dashersCaughtToday,
+                Reputation = _reputation,
+            };
+
+            GameEvents.RaiseNotice(profit > 0f
+                ? $"Day {day} closed with ${profit:0.00} profit. Your cut: ${playerShare:0.00}."
+                : $"Day {day} closed with {(profit < 0f ? "-" : "")}${Mathf.Abs(profit):0.00} profit. No payout today.");
+            GameEvents.RaiseDaySummaryReady(summary);
+
+            ResetDayCounters();
+            Publish(new MoneyChange { Delta = -playerShare, Balance = _balance, Reason = $"Your cut, day {day}" });
+        }
+
+        private void ResetDayCounters()
+        {
+            _revenueToday = 0f;
+            _expensesToday = 0f;
+            _deductionsToday = 0f;
+            _customersServed = 0;
+            _customersLost = 0;
+            _dineAndDashesToday = 0;
+            _dashersCaughtToday = 0;
+        }
+
         private void Publish(MoneyChange change)
         {
             GameEvents.RaiseMoneyChanged(change);
@@ -110,11 +262,14 @@ namespace BuffetSim.Economy
             GameEvents.RaiseLedgerUpdated(new LedgerSnapshot
             {
                 Balance = _balance,
+                PlayerCash = _playerCash,
                 RevenueToday = _revenueToday,
                 ExpensesToday = _expensesToday,
                 DeductionsToday = _deductionsToday,
                 CustomersServed = _customersServed,
                 CustomersLost = _customersLost,
+                DineAndDashesToday = _dineAndDashesToday,
+                DashersCaughtToday = _dashersCaughtToday,
             });
         }
     }
