@@ -104,4 +104,6 @@ in isolation.
 - `Assets/Scenes/BuffetDemo.unity` contains a single `DemoSceneBuilder` object that assembles the level from primitives at runtime; regenerate it with **Buffet Sim > Create Demo Scene**.
 - Private serialized fields use `camelCase`; private runtime fields use `_camelCase`.
 - The event bus is `BuffetSim.Core.GameEvents`. Add a new event there rather than passing component references around.
+- Chaos events live in `Assets/BuffetSim/Runtime/Events`: one `ChaosEvent` ScriptableObject subclass (tunables) plus one `ChaosEventRunner` MonoBehaviour per event; `ChaosEventScheduler` picks them by weight, per-day cap and cooldown from `EconomyConfig`. New events go in the catalog, never in the scheduler.
+- The day cycle (`Day/DayClock`), satisfaction (`Economy/StoreReputation`) and the ledger only ever meet through the bus; the HUD listens and never calls into them.
 - `.glb` art goes in `Assets/StreamingAssets/Models/` and is loaded by `GlbModelLoader` (com.unity.cloud.gltfast).

@@ -3,6 +3,7 @@ using BuffetSim.Core;
 using BuffetSim.Customers;
 using BuffetSim.Day;
 using BuffetSim.Economy;
+using BuffetSim.Events;
 using BuffetSim.Food;
 using BuffetSim.Models;
 using BuffetSim.Player;
@@ -26,6 +27,8 @@ namespace BuffetSim.Bootstrap
         [Header("Data (runtime defaults are created when empty)")]
         [SerializeField] private EconomyConfig economyConfig;
         [SerializeField] private FoodCatalog foodCatalog;
+        [Tooltip("Optional: the chaos events that can fire; a runtime default with the four demo events is used when empty.")]
+        [SerializeField] private ChaosEventCatalog chaosCatalog;
         [Tooltip("Optional lit material used as the base for every placeholder colour; assign one so builds include the shader.")]
         [SerializeField] private Material baseMaterial;
         [Tooltip("0 = random every run.")]
@@ -502,6 +505,26 @@ namespace BuffetSim.Bootstrap
             customersGo.transform.SetParent(transform, false);
             CustomerSpawner spawner = customersGo.AddComponent<CustomerSpawner>();
             spawner.Initialize(context, foodCatalog, SpawnPoint, _font, 1.5f);
+
+            // Chaos events: data-driven definitions, one running at a time. The scheduler only needs landmarks
+            // and a way to look at customers; it never holds the systems themselves.
+            var chaosContext = new ChaosEventContext
+            {
+                Config = economyConfig,
+                Rng = _rng,
+                Font = _font,
+                DoorOutside = SpawnPoint,
+                DoorInside = new Vector3(4f, 0f, -8.5f),
+                RegisterPoint = RegisterPoint,
+                FloorBounds = new Bounds(new Vector3(0f, 0f, -2f), new Vector3(28f, 2f, 12f)),
+                Queue = _queue,
+                CustomersInStore = () => spawner.Customers,
+                Player = inventory.transform,
+            };
+            var chaosGo = new GameObject("Chaos Events");
+            chaosGo.transform.SetParent(transform, false);
+            ChaosEventScheduler chaos = chaosGo.AddComponent<ChaosEventScheduler>();
+            chaos.Initialize(chaosCatalog != null ? chaosCatalog : ChaosEventCatalog.CreateDefault(), chaosContext);
 
             GameEvents.RaiseNotice($"{foodCatalog.Unlocked.Count} foods unlocked, {_floor.TableCount} tables, ${economyConfig.StartingMoney:0.00} in the till.");
         }
