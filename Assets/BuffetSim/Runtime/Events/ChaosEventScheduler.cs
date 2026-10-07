@@ -8,8 +8,10 @@ namespace BuffetSim.Events
     /// <summary>
     /// Rolls for a chaos event every EventCheckInterval seconds while the doors are open and someone
     /// is in the building, picks a weighted random eligible definition from the catalog and runs at
-    /// most one event at a time. Day boundaries come off the bus; the running event is aborted when
-    /// the lights go off. Without a DayClock it behaves as if day 1 were open forever.
+    /// most one scheduled event at a time. Events asked for by id on the bus (fortunes, the robbery
+    /// counter, the debug keys) run alongside it, outside the daily cap. Day boundaries come off the
+    /// bus; everything running is aborted when the lights go off. Without a DayClock it behaves as
+    /// if day 1 were open forever.
     /// </summary>
     public sealed class ChaosEventScheduler : MonoBehaviour
     {
@@ -17,6 +19,7 @@ namespace BuffetSim.Events
 
         private readonly Dictionary<ChaosEvent, float> _endedAt = new Dictionary<ChaosEvent, float>();
         private readonly List<ChaosEvent> _eligible = new List<ChaosEvent>();
+        private readonly List<ChaosEventRunner> _extras = new List<ChaosEventRunner>();
 
         private ChaosEventContext _ctx;
         private EconomyConfig _config;
@@ -35,6 +38,8 @@ namespace BuffetSim.Events
         /// <summary>The runner currently in progress, or null.</summary>
         public ChaosEventRunner ActiveRunner => _active != null && !_active.IsFinished ? _active : null;
         public bool HasActiveEvent => _activeDefinition != null;
+        /// <summary>Requested events currently running next to the scheduled one.</summary>
+        public int ExtraCount => _extras.Count;
         public int EventsToday => _eventsToday;
         public int Day => _day;
 
@@ -54,6 +59,7 @@ namespace BuffetSim.Events
             GameEvents.DayStarted += OnDayStarted;
             GameEvents.DayPhaseChanged += OnDayPhaseChanged;
             GameEvents.CustomerCountChanged += OnCustomerCountChanged;
+            GameEvents.ChaosEventRequested += OnEventRequested;
         }
 
         private void OnDisable()
@@ -61,12 +67,14 @@ namespace BuffetSim.Events
             GameEvents.DayStarted -= OnDayStarted;
             GameEvents.DayPhaseChanged -= OnDayPhaseChanged;
             GameEvents.CustomerCountChanged -= OnCustomerCountChanged;
+            GameEvents.ChaosEventRequested -= OnEventRequested;
         }
 
         private void Update()
         {
             if (!_ready) return;
             TrackActive();
+            PruneExtras();
             if (_phase != DayPhase.Open) return;
 
             _checkTimer -= Time.deltaTime;
@@ -81,6 +89,46 @@ namespace BuffetSim.Events
             if (!_ready || definition == null) return null;
             AbortActive();
             return StartEvent(definition);
+        }
+
+        /// <summary>
+        /// An event asked for by id: it runs on top of whatever is scheduled, doesn't count against
+        /// the daily cap, and is skipped silently once the doors have closed. Unknown ids are logged.
+        /// </summary>
+        private void OnEventRequested(string id)
+        {
+            if (!_ready || string.IsNullOrEmpty(id)) return;
+            if (_phase == DayPhase.Closed) return;
+            ChaosEvent definition = catalog.Find(id);
+            if (definition == null)
+            {
+                Debug.LogWarning($"[Buffet] No chaos event with id '{id}' in the catalog.");
+                return;
+            }
+            ChaosEventRunner runner = definition.Begin(_ctx, transform);
+            if (runner == null || runner.IsFinished) return;
+            _extras.Add(runner);
+            _endedAt[definition] = Time.time; // keeps the random roll from picking the same thing right away
+        }
+
+        private void PruneExtras()
+        {
+            for (int i = _extras.Count - 1; i >= 0; i--)
+            {
+                if (_extras[i] == null || _extras[i].IsFinished) _extras.RemoveAt(i);
+            }
+        }
+
+        private void AbortExtras()
+        {
+            for (int i = 0; i < _extras.Count; i++)
+            {
+                ChaosEventRunner runner = _extras[i];
+                if (runner == null || runner.IsFinished) continue;
+                runner.Abort();
+                if (runner != null) Destroy(runner.gameObject);
+            }
+            _extras.Clear();
         }
 
         private void TryStartRandomEvent()
@@ -171,7 +219,11 @@ namespace BuffetSim.Events
         {
             _phase = snapshot.Phase;
             _day = snapshot.Day;
-            if (_phase == DayPhase.Closed) AbortActive();
+            if (_phase == DayPhase.Closed)
+            {
+                AbortActive();
+                AbortExtras();
+            }
         }
 
         private void OnCustomerCountChanged(int inStore)

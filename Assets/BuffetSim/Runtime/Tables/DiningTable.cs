@@ -16,6 +16,7 @@ namespace BuffetSim.Tables
         [SerializeField] private Transform seatPoint;
         [SerializeField] private Transform plateStackRoot;
         [SerializeField] private Renderer statusLight;
+        [SerializeField] private Renderer lamp;
 
         private readonly List<GameObject> _plateVisuals = new List<GameObject>();
         private object _reservedBy;
@@ -25,12 +26,15 @@ namespace BuffetSim.Tables
         public int DirtyPlates => _dirtyPlates;
         public bool IsAvailable => _reservedBy == null && _dirtyPlates == 0;
         public Vector3 SeatPosition => seatPoint != null ? seatPoint.position : transform.position + transform.right;
+        /// <summary>The lamp hanging over the table (the booth-lamp event turns it off), or null.</summary>
+        public Renderer Lamp => lamp;
 
-        public void Configure(Transform seat, Transform plateRoot, Renderer statusRenderer)
+        public void Configure(Transform seat, Transform plateRoot, Renderer statusRenderer, Renderer lampRenderer = null)
         {
             seatPoint = seat;
             plateStackRoot = plateRoot;
             statusLight = statusRenderer;
+            lamp = lampRenderer;
             RefreshVisuals();
         }
 

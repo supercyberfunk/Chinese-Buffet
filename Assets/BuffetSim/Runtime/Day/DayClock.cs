@@ -41,11 +41,22 @@ namespace BuffetSim.Day
         private void OnEnable()
         {
             GameEvents.CustomerCountChanged += OnCustomerCountChanged;
+            GameEvents.DayFastForwardRequested += OnFastForwardRequested;
         }
 
         private void OnDisable()
         {
             GameEvents.CustomerCountChanged -= OnCustomerCountChanged;
+            GameEvents.DayFastForwardRequested -= OnFastForwardRequested;
+        }
+
+        /// <summary>Debug: skip ahead. The phase machine in Update notices the new reading on its next tick.</summary>
+        private void OnFastForwardRequested(float seconds)
+        {
+            if (!_running || seconds <= 0f) return;
+            if (_phase == DayPhase.Open || _phase == DayPhase.LastCall) _secondsRemaining = Mathf.Max(0f, _secondsRemaining - seconds);
+            else _phaseTimer -= seconds;
+            GameEvents.RaiseDayClockTicked(Snapshot());
         }
 
         private void Update()

@@ -25,7 +25,7 @@ namespace BuffetSim.Events
             return null;
         }
 
-        /// <summary>Runtime instances of the four built-in events with their default tuning; no assets needed.</summary>
+        /// <summary>Runtime instances of the built-in events with their default tuning; no assets needed. Weight-zero events only start by request (the robbery counter, fortunes, debug keys).</summary>
         public static ChaosEventCatalog CreateDefault()
         {
             var catalog = CreateInstance<ChaosEventCatalog>();
@@ -36,6 +36,7 @@ namespace BuffetSim.Events
                 RatSummonerEvent.CreateDefault(),
                 SpillEvent.CreateDefault(),
                 LeprechaunEvent.CreateDefault(),
+                RobberyEvent.CreateDefault(),
             };
             return catalog;
         }

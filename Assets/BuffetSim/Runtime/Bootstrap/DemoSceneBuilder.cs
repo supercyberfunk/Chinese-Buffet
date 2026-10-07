@@ -2,6 +2,7 @@ using BuffetSim.Buffet;
 using BuffetSim.Core;
 using BuffetSim.Customers;
 using BuffetSim.Day;
+using BuffetSim.Debugging;
 using BuffetSim.Economy;
 using BuffetSim.Events;
 using BuffetSim.Food;
@@ -62,6 +63,11 @@ namespace BuffetSim.Bootstrap
         private static readonly Vector3 SpawnPoint = new Vector3(5.5f, 0f, -12f);
         private static readonly Vector3 ExitPoint = new Vector3(2.5f, 0f, -12f);
         private static readonly Vector3 PlayerSpawn = new Vector3(0f, 0.1f, -4f);
+        private static readonly Vector3 WindowCenter = new Vector3(-9f, 1.6f, FrontWallZ);
+        private static readonly Vector3 WallHoleCenter = new Vector3(-SideWallX, 1f, -2.5f);
+        private static readonly Vector3 RestroomDoor = new Vector3(-SideWallX, 1.05f, -7f);
+        private static readonly Vector3 DishwasherPosition = new Vector3(12f, 0f, 9.5f);
+        private static readonly int[] DrainTables = { 1, 3, 5 };
 
         private static readonly Vector2[] TablePositions =
         {
@@ -73,6 +79,9 @@ namespace BuffetSim.Bootstrap
         private System.Random _rng;
         private BuffetFloor _floor;
         private CustomerQueue _queue;
+        private BreakablePanel _window;
+        private BreakablePanel _wallHole;
+        private readonly System.Collections.Generic.List<Vector3> _drainPoints = new System.Collections.Generic.List<Vector3>();
 
         private Material _wood;
         private Material _steel;
@@ -135,6 +144,7 @@ namespace BuffetSim.Bootstrap
 
             RenderSettings.ambientMode = AmbientMode.Flat;
             RenderSettings.ambientLight = new Color(0.45f, 0.45f, 0.5f);
+            sun.AddComponent<LightingDirector>();
         }
 
         private void BuildShell(Transform level)
@@ -166,6 +176,68 @@ namespace BuffetSim.Bootstrap
             AddSign(shell, new Vector3(0f, 2.5f, BackWallZ - 0.3f), "CHINESE BUFFET SIMULATOR\nplayable demo", 0.4f, new Color(1f, 0.85f, 0.3f));
             AddSign(shell, new Vector3(doorCenterX, 2.2f, FrontWallZ - 0.4f), "ENTRANCE", 0.3f, Color.white);
             AddSign(shell, new Vector3(0f, 1.9f, 7f), "KITCHEN", 0.3f, Color.white);
+
+            BuildFrontWindow(shell);
+            BuildWallHole(shell);
+            BuildRestroomDoor(shell);
+        }
+
+        /// <summary>The front window: glass on the inside face of the wall, a dark hole with shards when a rock comes through, fixed with the glass pane.</summary>
+        private void BuildFrontWindow(Transform shell)
+        {
+            var windowGo = new GameObject("Front Window");
+            windowGo.transform.SetParent(shell, false);
+            windowGo.transform.position = WindowCenter;
+            float innerZ = FrontWallZ + WallThickness * 0.5f + 0.02f;
+
+            GameObject frame = PrimitiveFactory.Visual("Frame", PrimitiveType.Cube, windowGo.transform, new Vector3(0f, 0f, innerZ - WindowCenter.z), new Vector3(2.7f, 1.7f, 0.04f), _darkSteel);
+            GameObject glass = PrimitiveFactory.Visual("Glass", PrimitiveType.Cube, windowGo.transform, new Vector3(0f, 0f, innerZ - WindowCenter.z + 0.03f), new Vector3(2.4f, 1.4f, 0.03f), MaterialLibrary.Get(new Color(0.65f, 0.85f, 0.95f)));
+            var broken = new GameObject("Broken");
+            broken.transform.SetParent(windowGo.transform, false);
+            PrimitiveFactory.Visual("Hole", PrimitiveType.Cube, broken.transform, new Vector3(0f, 0f, innerZ - WindowCenter.z + 0.03f), new Vector3(2.4f, 1.4f, 0.03f), MaterialLibrary.Get(new Color(0.05f, 0.05f, 0.08f)));
+            Material shard = MaterialLibrary.Get(new Color(0.75f, 0.9f, 1f));
+            PrimitiveFactory.Visual("Shard 1", PrimitiveType.Cube, broken.transform, new Vector3(-0.9f, 0.45f, innerZ - WindowCenter.z + 0.06f), new Vector3(0.6f, 0.5f, 0.02f), shard).transform.localRotation = Quaternion.Euler(0f, 0f, 35f);
+            PrimitiveFactory.Visual("Shard 2", PrimitiveType.Cube, broken.transform, new Vector3(1f, -0.4f, innerZ - WindowCenter.z + 0.06f), new Vector3(0.5f, 0.6f, 0.02f), shard).transform.localRotation = Quaternion.Euler(0f, 0f, -20f);
+            PrimitiveFactory.Visual("Shard 3", PrimitiveType.Cube, broken.transform, new Vector3(0.3f, -1.5f, innerZ - WindowCenter.z + 0.6f), new Vector3(0.4f, 0.02f, 0.3f), shard);
+            AddSign(shell, new Vector3(WindowCenter.x, WindowCenter.y + 1.05f, innerZ + 0.05f), "OPEN 24 HRS (10-9)", 0.14f, new Color(1f, 0.5f, 0.5f));
+
+            _window = windowGo.AddComponent<BreakablePanel>();
+            _window.Configure("Fit the window pane", CarryItems.GlassPane, "a glass pane", "the maintenance shelf in the kitchen", 4f, glass, broken,
+                new Vector3(WindowCenter.x, 1.4f, innerZ + 0.4f), new Vector3(2.6f, 1.8f, 0.9f),
+                economyConfig.LandlordPatchFee, "The landlord boarded up the window overnight");
+        }
+
+        /// <summary>Where the pitcher boy comes through: nothing to see until he does, then a ragged hole and rubble, fixed with duct tape.</summary>
+        private void BuildWallHole(Transform shell)
+        {
+            var holeGo = new GameObject("Wall Hole");
+            holeGo.transform.SetParent(shell, false);
+            holeGo.transform.position = WallHoleCenter;
+            float innerX = WallThickness * 0.5f + 0.02f;
+
+            var broken = new GameObject("Broken");
+            broken.transform.SetParent(holeGo.transform, false);
+            Material dark = MaterialLibrary.Get(new Color(0.04f, 0.03f, 0.03f));
+            PrimitiveFactory.Visual("Hole", PrimitiveType.Cube, broken.transform, new Vector3(innerX, 0.1f, 0f), new Vector3(0.03f, 2.2f, 1.7f), dark);
+            GameObject edge = PrimitiveFactory.Visual("Edge", PrimitiveType.Cube, broken.transform, new Vector3(innerX + 0.01f, 0.1f, 0f), new Vector3(0.03f, 2.5f, 1.3f), dark);
+            edge.transform.localRotation = Quaternion.Euler(30f, 0f, 0f);
+            Material rubble = MaterialLibrary.Get(new Color(0.75f, 0.3f, 0.25f));
+            PrimitiveFactory.Visual("Rubble 1", PrimitiveType.Cube, broken.transform, new Vector3(0.6f, -0.85f, 0.4f), new Vector3(0.35f, 0.25f, 0.3f), rubble).transform.localRotation = Quaternion.Euler(0f, 30f, 0f);
+            PrimitiveFactory.Visual("Rubble 2", PrimitiveType.Cube, broken.transform, new Vector3(0.9f, -0.9f, -0.5f), new Vector3(0.25f, 0.18f, 0.4f), rubble).transform.localRotation = Quaternion.Euler(0f, -20f, 0f);
+            PrimitiveFactory.Visual("Rubble 3", PrimitiveType.Cube, broken.transform, new Vector3(1.4f, -0.93f, 0.1f), new Vector3(0.2f, 0.12f, 0.2f), rubble);
+
+            _wallHole = holeGo.AddComponent<BreakablePanel>();
+            _wallHole.Configure("Tape up the hole in the wall", CarryItems.DuctTape, "duct tape", "the maintenance shelf in the kitchen", 6f, null, broken,
+                new Vector3(WallHoleCenter.x + 0.6f, 1f, WallHoleCenter.z), new Vector3(0.9f, 2.2f, 1.9f),
+                economyConfig.LandlordPatchFee, "The landlord patched the hole in the wall overnight");
+        }
+
+        private void BuildRestroomDoor(Transform shell)
+        {
+            float innerX = -SideWallX + WallThickness * 0.5f + 0.03f;
+            PrimitiveFactory.Visual("Restroom Door", PrimitiveType.Cube, shell, new Vector3(innerX, RestroomDoor.y, RestroomDoor.z), new Vector3(0.06f, 2.1f, 1f), MaterialLibrary.Get(new Color(0.35f, 0.22f, 0.15f)));
+            PrimitiveFactory.Visual("Restroom Handle", PrimitiveType.Sphere, shell, new Vector3(innerX + 0.05f, RestroomDoor.y, RestroomDoor.z + 0.35f), Vector3.one * 0.08f, _steel);
+            AddSign(shell, new Vector3(innerX + 0.1f, 2.45f, RestroomDoor.z), "RESTROOM\n(one toilet, shared)", 0.13f, Color.white);
         }
 
         private void BuildFrontDesk(Transform level)
@@ -291,8 +363,22 @@ namespace BuffetSim.Bootstrap
 
                 GameObject statusLight = PrimitiveFactory.Visual("Status Light", PrimitiveType.Sphere, tableGo.transform, new Vector3(-0.4f, 0.88f, -0.4f), Vector3.one * 0.18f, MaterialLibrary.Get(Color.green));
 
+                // A lamp on a cord over every table (the booth-lamp event kills one of them).
+                PrimitiveFactory.Visual("Lamp Cord", PrimitiveType.Cube, tableGo.transform, new Vector3(0f, 2.75f, 0f), new Vector3(0.02f, 0.9f, 0.02f), _darkSteel);
+                PrimitiveFactory.Visual("Lamp Shade", PrimitiveType.Cylinder, tableGo.transform, new Vector3(0f, 2.3f, 0f), new Vector3(0.55f, 0.1f, 0.55f), MaterialLibrary.Get(new Color(0.6f, 0.15f, 0.12f)));
+                GameObject bulb = PrimitiveFactory.Visual("Lamp", PrimitiveType.Sphere, tableGo.transform, new Vector3(0f, 2.15f, 0f), Vector3.one * 0.22f, MaterialLibrary.Get(new Color(1f, 0.95f, 0.7f)));
+
+                bool hasDrain = System.Array.IndexOf(DrainTables, i) >= 0;
+                if (hasDrain)
+                {
+                    // A shower drain under the seat. Nobody asks why.
+                    PrimitiveFactory.Visual("Drain", PrimitiveType.Cylinder, tableGo.transform, new Vector3(1.05f, 0.006f, 0f), new Vector3(0.6f, 0.005f, 0.6f), MaterialLibrary.Get(new Color(0.2f, 0.2f, 0.22f)));
+                    PrimitiveFactory.Visual("Drain Grate", PrimitiveType.Cylinder, tableGo.transform, new Vector3(1.05f, 0.012f, 0f), new Vector3(0.4f, 0.005f, 0.4f), MaterialLibrary.Get(new Color(0.08f, 0.08f, 0.08f)));
+                    _drainPoints.Add(tableGo.transform.position);
+                }
+
                 var table = tableGo.AddComponent<DiningTable>();
-                table.Configure(seat.transform, plates.transform, statusLight.GetComponent<Renderer>());
+                table.Configure(seat.transform, plates.transform, statusLight.GetComponent<Renderer>(), bulb.GetComponent<Renderer>());
                 _floor.RegisterTable(table);
             }
         }
@@ -327,7 +413,7 @@ namespace BuffetSim.Bootstrap
 
             var dishwasherGo = new GameObject("Dishwasher");
             dishwasherGo.transform.SetParent(kitchen, false);
-            dishwasherGo.transform.position = new Vector3(12f, 0f, 9.5f);
+            dishwasherGo.transform.position = DishwasherPosition;
             PrimitiveFactory.Solid("Body", PrimitiveType.Cube, dishwasherGo.transform, new Vector3(0f, 0.6f, 0f), new Vector3(1.6f, 1.2f, 1.4f), _steel);
             PrimitiveFactory.Visual("Handle", PrimitiveType.Cube, dishwasherGo.transform, new Vector3(0f, 1.3f, 0f), new Vector3(0.8f, 0.08f, 0.08f), _darkSteel);
             TextMesh dishLabel = PrimitiveFactory.Label("Label", dishwasherGo.transform, new Vector3(0f, 1.7f, 0f), string.Empty, 0.18f, _font, Color.white);
@@ -337,7 +423,43 @@ namespace BuffetSim.Bootstrap
 
             BuildTrashCan(kitchen, new Vector3(-12.5f, 0f, 9.5f));
             BuildTrashCan(level, new Vector3(13f, 0f, -2.5f));
+            BuildMaintenanceShelf(kitchen);
             BuildCookingProps(kitchen);
+        }
+
+        /// <summary>Lightbulbs, duct tape, the wrench and a glass pane on a shelf against the kitchen's left wall.</summary>
+        private void BuildMaintenanceShelf(Transform kitchen)
+        {
+            const float shelfX = -14.4f;
+            const float shelfZ = 9.4f;
+            PrimitiveFactory.Solid("Maintenance Shelf", PrimitiveType.Cube, kitchen, new Vector3(shelfX, 0.5f, shelfZ), new Vector3(0.8f, 1f, 3.8f), _darkSteel);
+            AddSign(kitchen, new Vector3(shelfX + 0.3f, 2.3f, shelfZ), "MAINTENANCE", 0.2f, new Color(1f, 0.85f, 0.4f));
+
+            BuildSupply(kitchen, new Vector3(shelfX, 1f, shelfZ - 1.4f), "Lightbulbs", CarryItems.Lightbulb, "a lightbulb", 0f, 1, economyConfig.LightbulbsPerDay, false, true,
+                PrimitiveType.Sphere, new Vector3(0.25f, 0.25f, 0.25f), new Color(1f, 0.97f, 0.75f));
+            BuildSupply(kitchen, new Vector3(shelfX, 1f, shelfZ - 0.45f), "Duct Tape", CarryItems.DuctTape, "duct tape", economyConfig.DuctTapeCost, economyConfig.DuctTapeStrips, -1, false, false,
+                PrimitiveType.Cylinder, new Vector3(0.28f, 0.06f, 0.28f), new Color(0.6f, 0.62f, 0.65f));
+            BuildSupply(kitchen, new Vector3(shelfX, 1f, shelfZ + 0.5f), "Wrench", CarryItems.Wrench, "the wrench", 0f, 1, -1, false, false,
+                PrimitiveType.Cube, new Vector3(0.08f, 0.05f, 0.5f), new Color(0.5f, 0.52f, 0.55f));
+            BuildSupply(kitchen, new Vector3(shelfX, 1f, shelfZ + 1.45f), "Glass Pane", CarryItems.GlassPane, "a glass pane", economyConfig.GlassPaneCost, 1, -1, true, true,
+                PrimitiveType.Cube, new Vector3(0.04f, 1.1f, 0.7f), new Color(0.7f, 0.85f, 0.95f));
+        }
+
+        private void BuildSupply(Transform parent, Vector3 position, string name, string itemId, string displayName, float cost, int uses, int dailyStock, bool heavy, bool fragile,
+            PrimitiveType shape, Vector3 size, Color color)
+        {
+            var go = new GameObject($"Supply - {name}");
+            go.transform.SetParent(parent, false);
+            go.transform.position = position;
+            PrimitiveFactory.Visual("Visual", shape, go.transform, new Vector3(0f, size.y * 0.5f, 0f), size, MaterialLibrary.Get(color));
+            BoxCollider trigger = go.AddComponent<BoxCollider>();
+            trigger.isTrigger = true;
+            trigger.center = new Vector3(0f, Mathf.Max(0.2f, size.y * 0.5f), 0f);
+            trigger.size = new Vector3(Mathf.Max(0.5f, size.x), Mathf.Max(0.4f, size.y), Mathf.Max(0.6f, size.z));
+            TextMesh label = PrimitiveFactory.Label("Label", go.transform, new Vector3(0.45f, size.y + 0.35f, 0f), string.Empty, 0.11f, _font, Color.white);
+            label.gameObject.AddComponent<Billboard>();
+            var item = go.AddComponent<SupplyItem>();
+            item.Configure(itemId, displayName, cost, uses, dailyStock, heavy, fragile, label);
         }
 
         /// <summary>Meshy fryer and stove models as set dressing; cooking itself is out of scope for the demo.</summary>
@@ -526,12 +648,32 @@ namespace BuffetSim.Bootstrap
                 FloorBounds = new Bounds(new Vector3(0f, 0f, -2f), new Vector3(28f, 2f, 12f)),
                 Queue = _queue,
                 CustomersInStore = () => spawner.Customers,
+                FoodSources = () => _floor.Sources,
                 Player = inventory.transform,
+                WindowPoint = new Vector3(WindowCenter.x, 0f, FrontWallZ + 0.6f),
+                WallHolePoint = new Vector3(WallHoleCenter.x + 0.9f, 0f, WallHoleCenter.z),
+                RestroomPoint = new Vector3(RestroomDoor.x + 1f, 0f, RestroomDoor.z),
+                BuffetPoint = new Vector3(0f, 0f, BuffetZ - 1.8f),
+                KitchenPoint = new Vector3(0f, 0f, 7f),
+                DishwasherPoint = DishwasherPosition + new Vector3(0f, 0f, -1.1f),
+                DrainPoints = _drainPoints.ToArray(),
+                Window = _window,
+                WallHole = _wallHole,
             };
             var chaosGo = new GameObject("Chaos Events");
             chaosGo.transform.SetParent(transform, false);
             ChaosEventScheduler chaos = chaosGo.AddComponent<ChaosEventScheduler>();
-            chaos.Initialize(chaosCatalog != null ? chaosCatalog : ChaosEventCatalog.CreateDefault(), chaosContext);
+            ChaosEventCatalog catalog = chaosCatalog != null ? chaosCatalog : ChaosEventCatalog.CreateDefault();
+            chaos.Initialize(catalog, chaosContext);
+
+            // Robberies run off their own customer counter and ask the scheduler for the event by id.
+            var robberyGo = new GameObject("Robbery Counter");
+            robberyGo.transform.SetParent(transform, false);
+            robberyGo.AddComponent<RobberyScheduler>().Initialize(economyConfig, _rng);
+
+            var debugGo = new GameObject("Debug Tools");
+            debugGo.transform.SetParent(transform, false);
+            debugGo.AddComponent<DebugTools>().Initialize(catalog, inventory.GetComponent<PlayerPocket>(), inventory.transform);
 
             GameEvents.RaiseNotice($"{foodCatalog.Unlocked.Count} foods unlocked, {_floor.TableCount} tables, ${economyConfig.StartingMoney:0.00} in the till.");
         }
