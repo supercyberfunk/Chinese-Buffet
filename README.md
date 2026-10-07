@@ -105,8 +105,7 @@ shader ships with the build).
 4. Walk to the **storage cooler** in the kitchen. E takes a cooked tray if the pile has one; Q buys a raw
    box for $15 (money out). Carry the raw box to the cooker whose name is on it, cook it (see Controls),
    take the cooked tray out when the light turns green, and press E on the matching buffet tray: it
-   pours what the tray has room for, up to 20, and the rest stays in your hands. (The notes say a tray
-   takes whole batches only; whether to enforce that is an open design question.)
+   pours what the tray has room for, up to 20, and the rest stays in your hands.
 5. When a customer leaves they pay at the register (money in) and leave 2 to 5 dirty plates on
    the table. The table's light turns yellow; press E to pick up plates (4 at a time), carry them
    to the **dishwasher** and press E to load it (a full machine runs itself first). A table with

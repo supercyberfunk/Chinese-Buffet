@@ -52,8 +52,10 @@ in isolation.
 ### Trays
 - Buffet food is served in **batch trays**, each holding **20 units** of a
   given item.
-- Trays deplete as patrons (and the player) take units, and must be
-  restocked in batches of 20 — no partial/arbitrary restock amounts.
+- Trays deplete as patrons (and the player) take units. Food arrives in
+  batches of 20 (a wholesale box, a cooked tray); a refill pours what the
+  tray has room for, up to 20, and the rest stays in the player's hands
+  (top-ups chosen over whole-batch-only refills on 2026-10-07).
 - Tray state (current units, item type, empty/full/spilled) should be a
   self-contained component other systems can query and subscribe to.
 
