@@ -44,6 +44,8 @@ namespace BuffetSim.Economy
         private void OnCustomerPaid(CustomerReceipt receipt)
         {
             if (!_initialized) return;
+            // Nothing settled (a diner who got nothing, or one a rock put down): nothing to score.
+            if (receipt.Total <= 0f && receipt.Deductions <= 0f) return;
             if (receipt.Deductions > 0f)
                 Apply(config.ReputationShortChanged, $"{receipt.CustomerName} was short-changed");
             else

@@ -90,13 +90,15 @@ namespace BuffetSim.Economy
         private void OnCustomerPaid(CustomerReceipt receipt)
         {
             if (!_initialized) return;
-            _customersServed++;
+            // Someone who got nothing and paid nothing was not served; comped diners still count.
+            if (receipt.UnitsTaken > 0 || receipt.Total > 0f) _customersServed++;
 
-            // Fortunes can rewrite the bill: forgiven mistakes drop the deductions, a comp zeroes it, a boost scales it.
+            // Fortunes can rewrite the bill: forgiven mistakes drop the deductions (on a bill where
+            // something was served), a comp zeroes it, a boost scales it.
             float total = receipt.Total;
             float deductions = receipt.Deductions;
             string rule = string.Empty;
-            if (MistakesForgiven && deductions > 0f)
+            if (MistakesForgiven && deductions > 0f && receipt.UnitsTaken > 0)
             {
                 total = receipt.BaseAmount;
                 deductions = 0f;
@@ -123,6 +125,7 @@ namespace BuffetSim.Economy
                 if (rule.Length == 0)
                     GameEvents.RaiseNotice($"{receipt.CustomerName} left without paying: none of their {receipt.UnitsWanted} units could be served.");
                 Publish(new MoneyChange { Delta = 0f, Balance = _balance, Reason = $"{receipt.CustomerName}: $0", WorldPosition = receipt.WorldPosition, HasWorldPosition = true });
+                GameEvents.RaiseCustomerCharged(receipt.CustomerName, 0f, receipt.WorldPosition);
                 return;
             }
 
@@ -133,6 +136,8 @@ namespace BuffetSim.Economy
                 : $"{receipt.CustomerName} paid ${total:0.00} in full{rule}";
             GameEvents.RaiseNotice(detail);
             Publish(new MoneyChange { Delta = total, Balance = _balance, Reason = receipt.CustomerName, WorldPosition = receipt.WorldPosition, HasWorldPosition = true });
+            // Thieves and the like want to know what actually went in, not what the receipt said.
+            GameEvents.RaiseCustomerCharged(receipt.CustomerName, total, receipt.WorldPosition);
         }
 
         private void OnCustomerLost(string customerName, Vector3 at)
@@ -167,10 +172,13 @@ namespace BuffetSim.Economy
             }
 
             float penalty = count * config.BrokenDishPenalty;
-            _balance = Mathf.Max(0f, _balance - penalty);
-            _expensesToday += penalty;
-            GameEvents.RaiseNotice($"{count} dish{(count == 1 ? "" : "es")} broken: -${penalty:0.00}");
-            Publish(new MoneyChange { Delta = -penalty, Balance = _balance, Reason = "Broken dishes", WorldPosition = at, HasWorldPosition = true });
+            float paid = Mathf.Min(penalty, _balance);
+            _balance -= paid;
+            _expensesToday += paid;
+            GameEvents.RaiseNotice(paid < penalty
+                ? $"{count} dish{(count == 1 ? "" : "es")} broken: -${penalty:0.00} (the till only had ${paid:0.00})"
+                : $"{count} dish{(count == 1 ? "" : "es")} broken: -${penalty:0.00}");
+            Publish(new MoneyChange { Delta = -paid, Balance = _balance, Reason = "Broken dishes", WorldPosition = at, HasWorldPosition = true });
         }
 
         /// <summary>Coins picked up off the floor go straight back into the till and count as revenue.</summary>
@@ -298,7 +306,8 @@ namespace BuffetSim.Economy
         private void OnDayStarted(int day)
         {
             if (!_initialized) return;
-            ResetDayCounters();
+            // The books were reset when the doors closed; anything booked during the closed window
+            // (a late thief, dishes dropped on the way out) simply rolls into this day.
             PublishSnapshot();
         }
 

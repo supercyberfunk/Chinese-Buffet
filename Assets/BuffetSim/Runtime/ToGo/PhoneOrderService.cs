@@ -354,6 +354,16 @@ namespace BuffetSim.ToGo
             }
             int extras = Mathf.Max(0, request.TotalUnits - matched);
 
+            // A box with none of their order in it is not a delivery, the same way a diner who got
+            // nothing pays nothing: the order stays open and the box stays in your hands.
+            if (matched == 0)
+            {
+                request.Outcome = request.TotalUnits > 0
+                    ? $"{order.Caller} opened the box on the shelf, found none of their order in it and left it with you. Repack it."
+                    : $"{order.Caller} is not paying for an empty box. Fill it first.";
+                return;
+            }
+
             float unitPrice = config != null ? config.ToGoUnitPrice : 3f;
             float deductionPerUnit = config != null ? config.UnfulfilledUnitDeduction : 1.25f;
             float baseAmount = order.TotalUnits * unitPrice;
@@ -373,16 +383,15 @@ namespace BuffetSim.ToGo
             });
 
             string outcome;
+            // Satisfaction follows the receipt, like any other customer's.
             if (missing == 0)
             {
-                GameEvents.RaiseReputationNudged(2f, $"{order.Caller}'s order was right");
                 outcome = extras > 0
                     ? $"Racked {order.Caller}'s order: all {order.TotalUnits} units, ${total:0.00}. The {extras} extra went free; they will not say thank you."
                     : $"Racked {order.Caller}'s order: all {order.TotalUnits} units, ${total:0.00}.";
             }
             else
             {
-                GameEvents.RaiseReputationNudged(-Mathf.Min(3f, missing), $"{order.Caller}'s order was short");
                 outcome = $"Racked {order.Caller}'s order short: {matched}/{order.TotalUnits} units, ${total:0.00} (missing {string.Join(", ", missingParts)}).";
             }
             GameEvents.RaiseToGoOrderEnded(Info(order), true, missing == 0 ? "delivered" : "delivered short");
