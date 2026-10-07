@@ -25,6 +25,7 @@ namespace BuffetSim.Events
         private Transform _visual;
         private Vector3 _fullScale = Vector3.one;
         private PlayerInventory _playerInventory;
+        private PlayerEffects _playerEffects;
         private int _pressesLeft = PressesToMop;
         private float _playerCooldown;
         private float _customerTimer;
@@ -40,6 +41,7 @@ namespace BuffetSim.Events
             _visual = visual;
             if (visual != null) _fullScale = visual.localScale;
             _playerInventory = ctx != null && ctx.Player != null ? ctx.Player.GetComponent<PlayerInventory>() : null;
+            _playerEffects = ctx != null && ctx.Player != null ? ctx.Player.GetComponent<PlayerEffects>() : null;
             // Stagger the customer checks so several puddles don't all scan on the same frame.
             _customerTimer = ctx != null ? (float)ctx.Rng.NextDouble() * CustomerCheckInterval : 0f;
         }
@@ -90,10 +92,13 @@ namespace BuffetSim.Events
         private void SlipPlayer()
         {
             _playerCooldown = PlayerSlipCooldown;
-            int plates = _playerInventory.HeldPlates;
-            GameEvents.RaiseNotice("You slipped on the spill and dropped everything.");
-            _playerInventory.DropEverything();
-            if (plates > 0) GameEvents.RaiseDishesBroken(plates, _ctx.Player.position);
+            // Effects decide whether you can slip at all (a fortune can keep you upright) and what breaks.
+            if (_playerEffects != null)
+            {
+                _playerEffects.TrySlip("Slipped on the spill");
+                return;
+            }
+            _playerInventory.SpillLoad(_ctx.Player.position, "Slipped on the spill");
         }
 
         /// <summary>Each customer who walks through goes down once per puddle; the spill, not the customer, publishes the slip.</summary>

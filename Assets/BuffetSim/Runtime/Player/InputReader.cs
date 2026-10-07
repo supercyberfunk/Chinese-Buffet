@@ -66,6 +66,16 @@ namespace BuffetSim.Player
 #endif
         }
 
+        public static bool InteractHeld()
+        {
+#if ENABLE_INPUT_SYSTEM
+            Keyboard kb = Keyboard.current;
+            return kb != null && kb.eKey.isPressed;
+#else
+            return Input.GetKey(KeyCode.E);
+#endif
+        }
+
         public static bool DropPressed()
         {
 #if ENABLE_INPUT_SYSTEM
@@ -93,6 +103,61 @@ namespace BuffetSim.Player
             return mouse != null && mouse.leftButton.wasPressedThisFrame;
 #else
             return Input.GetMouseButtonDown(0);
+#endif
+        }
+
+        /// <summary>Left click: throw or use whatever is selected in the apron pocket.</summary>
+        public static bool ThrowPressed() => ClickPressed();
+
+        /// <summary>R: crack a fortune cookie.</summary>
+        public static bool CrackPressed()
+        {
+#if ENABLE_INPUT_SYSTEM
+            Keyboard kb = Keyboard.current;
+            return kb != null && kb.rKey.wasPressedThisFrame;
+#else
+            return Input.GetKeyDown(KeyCode.R);
+#endif
+        }
+
+        /// <summary>Tab: next thing in the apron pocket.</summary>
+        public static bool CyclePocketPressed()
+        {
+#if ENABLE_INPUT_SYSTEM
+            Keyboard kb = Keyboard.current;
+            return kb != null && kb.tabKey.wasPressedThisFrame;
+#else
+            return Input.GetKeyDown(KeyCode.Tab);
+#endif
+        }
+
+        /// <summary>F1..F12 went down this frame (the debug keys).</summary>
+        public static bool FunctionKeyPressed(int number)
+        {
+#if ENABLE_INPUT_SYSTEM
+            Keyboard kb = Keyboard.current;
+            if (kb == null) return false;
+            UnityEngine.InputSystem.Controls.KeyControl key;
+            switch (number)
+            {
+                case 1: key = kb.f1Key; break;
+                case 2: key = kb.f2Key; break;
+                case 3: key = kb.f3Key; break;
+                case 4: key = kb.f4Key; break;
+                case 5: key = kb.f5Key; break;
+                case 6: key = kb.f6Key; break;
+                case 7: key = kb.f7Key; break;
+                case 8: key = kb.f8Key; break;
+                case 9: key = kb.f9Key; break;
+                case 10: key = kb.f10Key; break;
+                case 11: key = kb.f11Key; break;
+                case 12: key = kb.f12Key; break;
+                default: return false;
+            }
+            return key != null && key.wasPressedThisFrame;
+#else
+            if (number < 1 || number > 12) return false;
+            return Input.GetKeyDown(KeyCode.F1 + (number - 1));
 #endif
         }
     }

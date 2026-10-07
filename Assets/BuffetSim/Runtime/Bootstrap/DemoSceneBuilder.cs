@@ -429,10 +429,15 @@ namespace BuffetSim.Bootstrap
 
             PlayerInventory inventory = playerGo.AddComponent<PlayerInventory>();
             inventory.Configure(economyConfig.PlayerPlateCapacity);
+            playerGo.AddComponent<PlayerPocket>();
+            playerGo.AddComponent<PlayerEffects>();
 
             PlayerInteractor interactor = playerGo.AddComponent<PlayerInteractor>();
             interactor.ViewCamera = camera;
             interactor.Inventory = inventory;
+
+            PlayerThrower thrower = playerGo.AddComponent<PlayerThrower>();
+            thrower.ViewCamera = camera;
 
             // Hand-held visuals hang off the camera.
             var hands = new GameObject("Hands");
@@ -457,10 +462,12 @@ namespace BuffetSim.Bootstrap
                 trayFood = PrimitiveFactory.Visual("Tray Food", PrimitiveType.Cube, trayVisual.transform, new Vector3(0f, 0.055f, 0f), new Vector3(0.42f, 0.08f, 0.28f), MaterialLibrary.Get(Color.white));
             }
             GameObject plateStack = PrimitiveFactory.Visual("Plate Stack", PrimitiveType.Cylinder, hands.transform, Vector3.zero, new Vector3(0.3f, 0.02f, 0.3f), MaterialLibrary.Get(new Color(0.92f, 0.92f, 0.9f)));
+            var itemRoot = new GameObject("Held Items");
+            itemRoot.transform.SetParent(hands.transform, false);
             SetLayerRecursively(hands, ignoreRaycast);
 
             PlayerHandVisual handVisual = playerGo.AddComponent<PlayerHandVisual>();
-            handVisual.Configure(inventory, trayVisual.transform, trayFood.GetComponent<Renderer>(), plateStack.transform);
+            handVisual.Configure(inventory, trayVisual.transform, trayFood.GetComponent<Renderer>(), plateStack.transform, itemRoot.transform);
 
             return inventory;
         }
@@ -471,7 +478,7 @@ namespace BuffetSim.Bootstrap
             var hudGo = new GameObject("HUD");
             hudGo.transform.SetParent(transform, false);
             HudController hud = hudGo.AddComponent<HudController>();
-            hud.Initialize(_font, inventory);
+            hud.Initialize(_font, inventory, inventory.GetComponent<PlayerPocket>(), inventory.GetComponent<PlayerEffects>());
 
             var ledgerGo = new GameObject("Economy Ledger");
             ledgerGo.transform.SetParent(transform, false);

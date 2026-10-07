@@ -29,14 +29,15 @@ namespace BuffetSim.Customers
         public IReadOnlyList<Line> Lines => _lines;
         public int TotalUnits { get; private set; }
 
-        public static CustomerOrder Roll(IReadOnlyList<FoodDefinition> unlocked, EconomyConfig config, System.Random rng)
+        /// <param name="maxed">"Many mouths will sing your praise": the most dishes and the most units there are.</param>
+        public static CustomerOrder Roll(IReadOnlyList<FoodDefinition> unlocked, EconomyConfig config, System.Random rng, bool maxed = false)
         {
             var order = new CustomerOrder();
             if (unlocked == null || unlocked.Count == 0 || config == null) return order;
 
             int maxDishes = Mathf.Clamp(config.MaxDishesPerOrder, 1, unlocked.Count);
             int minDishes = Mathf.Clamp(config.MinDishesPerOrder, 1, maxDishes);
-            int dishCount = rng.Next(minDishes, maxDishes + 1);
+            int dishCount = maxed ? maxDishes : rng.Next(minDishes, maxDishes + 1);
 
             var pool = new List<FoodDefinition>(unlocked);
             var chosen = new List<FoodDefinition>(dishCount);
@@ -52,7 +53,7 @@ namespace BuffetSim.Customers
             }
 
             int maxPerItem = Mathf.Max(1, config.MaxUnitsPerItem);
-            int totalUnits = rng.Next(config.MinUnitsPerVisit, config.MaxUnitsPerVisit + 1);
+            int totalUnits = maxed ? config.MaxUnitsPerVisit : rng.Next(config.MinUnitsPerVisit, config.MaxUnitsPerVisit + 1);
             totalUnits = Mathf.Clamp(totalUnits, chosen.Count, chosen.Count * maxPerItem);
 
             var units = new int[chosen.Count];

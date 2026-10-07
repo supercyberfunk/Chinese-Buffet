@@ -53,7 +53,7 @@ namespace BuffetSim.Tables
         {
             if (_dirtyPlates > 0)
             {
-                if (inventory.IsHoldingFood) return $"Dirty table ({_dirtyPlates} plates) - hands full";
+                if (inventory.HasNonPlateLoad) return $"Dirty table ({_dirtyPlates} plates) - hands full";
                 if (inventory.HeldPlates >= inventory.PlateCapacity) return $"Dirty table ({_dirtyPlates} plates) - you can't carry more";
                 return $"[E] Clear plates ({_dirtyPlates} on table, carrying {inventory.HeldPlates}/{inventory.PlateCapacity})";
             }
@@ -62,7 +62,7 @@ namespace BuffetSim.Tables
 
         public void Interact(PlayerInventory inventory)
         {
-            if (_dirtyPlates <= 0 || inventory.IsHoldingFood) return;
+            if (_dirtyPlates <= 0 || inventory.HasNonPlateLoad) return;
             int taken = inventory.AddPlates(_dirtyPlates);
             if (taken <= 0)
             {
@@ -74,6 +74,15 @@ namespace BuffetSim.Tables
                 ? $"Picked up {taken} plates, {_dirtyPlates} still on the table."
                 : $"Picked up {taken} plates. Table is clean.");
             RefreshVisuals();
+        }
+
+        /// <summary>Someone else cleared it (a cousin in a visor): every plate comes off. Returns how many there were.</summary>
+        public int ClearAllPlates()
+        {
+            int plates = _dirtyPlates;
+            _dirtyPlates = 0;
+            RefreshVisuals();
+            return plates;
         }
 
         private void RefreshVisuals()

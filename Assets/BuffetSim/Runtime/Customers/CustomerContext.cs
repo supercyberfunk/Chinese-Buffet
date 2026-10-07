@@ -28,5 +28,7 @@ namespace BuffetSim.Customers
         public Vector3 RegisterPoint;
         public Vector3 ExitPoint;
         public System.Random Rng = new System.Random();
+        /// <summary>Until this time, dine-and-dashers trip at the door ("What runs away comes back"). Set by the spawner.</summary>
+        public float DashersTripUntil = float.NegativeInfinity;
     }
 }

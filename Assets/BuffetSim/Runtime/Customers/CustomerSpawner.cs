@@ -38,6 +38,7 @@ namespace BuffetSim.Customers
         // Defaults let the spawner behave as before when no DayClock or StoreReputation exists.
         private DayPhase _phase = DayPhase.Open;
         private float _reputation = 50f;
+        private int _maxedOrders;
 
         public int SpawnedCount => _spawnedCount;
 
@@ -75,12 +76,20 @@ namespace BuffetSim.Customers
         {
             GameEvents.DayPhaseChanged += OnDayPhaseChanged;
             GameEvents.ReputationChanged += OnReputationChanged;
+            GameEvents.CustomerSpawnRequested += OnSpawnRequested;
+            GameEvents.OrderBoostRequested += OnOrderBoostRequested;
+            GameEvents.DashersTripRequested += OnDashersTripRequested;
+            GameEvents.CustomerFollowRequested += OnFollowRequested;
         }
 
         private void OnDisable()
         {
             GameEvents.DayPhaseChanged -= OnDayPhaseChanged;
             GameEvents.ReputationChanged -= OnReputationChanged;
+            GameEvents.CustomerSpawnRequested -= OnSpawnRequested;
+            GameEvents.OrderBoostRequested -= OnOrderBoostRequested;
+            GameEvents.DashersTripRequested -= OnDashersTripRequested;
+            GameEvents.CustomerFollowRequested -= OnFollowRequested;
         }
 
         private void Update()
@@ -138,7 +147,9 @@ namespace BuffetSim.Customers
             GlbModelLoader loader = root.AddComponent<GlbModelLoader>();
             loader.Configure("Models/customer.glb", placeholder);
 
-            CustomerOrder order = CustomerOrder.Roll(_catalog.Unlocked, _ctx.Config, _ctx.Rng);
+            bool maxed = _maxedOrders > 0;
+            if (maxed) _maxedOrders--;
+            CustomerOrder order = CustomerOrder.Roll(_catalog.Unlocked, _ctx.Config, _ctx.Rng, maxed);
             CustomerAgent customer = root.AddComponent<CustomerAgent>();
             customer.Initialize(_ctx, order, customerName, label);
 
@@ -174,6 +185,48 @@ namespace BuffetSim.Customers
         private void OnReputationChanged(float value, float delta, string reason)
         {
             _reputation = Mathf.Clamp(value, 0f, 100f);
+        }
+
+        /// <summary>Let people in right now, line length be damned (a tour bus, the noise of 8-8-8). Not after the doors close.</summary>
+        private void OnSpawnRequested(int count)
+        {
+            if (!_ready || _phase == DayPhase.Closing || _phase == DayPhase.Closed) return;
+            for (int i = 0; i < count; i++) Spawn();
+        }
+
+        private void OnOrderBoostRequested(int customers)
+        {
+            if (customers > 0) _maxedOrders += customers;
+        }
+
+        private void OnDashersTripRequested(float seconds)
+        {
+            if (!_ready || seconds <= 0f) return;
+            _ctx.DashersTripUntil = Mathf.Max(_ctx.DashersTripUntil, Time.time) + seconds;
+        }
+
+        /// <summary>The seated customer nearest the target gets up and trails it.</summary>
+        private void OnFollowRequested(Transform target, float seconds)
+        {
+            if (!_ready || target == null) return;
+            CustomerAgent nearest = null;
+            float bestDistance = float.PositiveInfinity;
+            for (int i = 0; i < _customers.Count; i++)
+            {
+                CustomerAgent customer = _customers[i];
+                if (customer == null || !customer.IsSeated || customer.IsHeld) continue;
+                float distance = (customer.transform.position - target.position).sqrMagnitude;
+                if (distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    nearest = customer;
+                }
+            }
+
+            if (nearest != null && nearest.Follow(target, seconds))
+                GameEvents.RaiseNotice($"{nearest.CustomerName} put down their fork and started following you. They don't say why.");
+            else
+                GameEvents.RaiseNotice("Nobody is sitting down, so nobody is thinking of you.");
         }
 
         /// <summary>Everyone still inside vanishes with the lights.</summary>

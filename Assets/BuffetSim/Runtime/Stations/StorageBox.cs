@@ -31,7 +31,7 @@ namespace BuffetSim.Stations
             if (inventory.HandsFree) return $"[E] Buy a box of {food.DisplayName} (${boxCost:0.00} for {unitsPerBox} units)";
             if (inventory.IsHoldingFood && inventory.HeldFood == food) return $"[E] Put your {inventory.HeldFoodUnits} {food.DisplayName} back in the cooler";
             if (inventory.IsHoldingFood) return $"{food.DisplayName} cooler - you're holding {inventory.HeldFood.DisplayName}";
-            return $"{food.DisplayName} cooler - put the plates down first";
+            return $"{food.DisplayName} cooler - hands full";
         }
 
         public void Interact(PlayerInventory inventory)
@@ -43,8 +43,12 @@ namespace BuffetSim.Stations
                 var request = new PurchaseRequest(boxCost, $"Box of {food.DisplayName}", transform.position);
                 GameEvents.RaisePurchaseRequested(request);
                 if (!request.Approved) return;
-                inventory.TryTakeFoodTray(food, unitsPerBox);
-                GameEvents.RaiseNotice($"Bought a box of {food.DisplayName}: {unitsPerBox} units for ${boxCost:0.00}.");
+                // A fortune can shrink what your tray holds; the rest of the box is lost to the cooler gods.
+                int carried = Mathf.Min(unitsPerBox, inventory.FoodCapacity);
+                inventory.TryTakeFoodTray(food, carried);
+                GameEvents.RaiseNotice(carried < unitsPerBox
+                    ? $"Bought a box of {food.DisplayName} for ${boxCost:0.00}, but your hands only manage {carried} of the {unitsPerBox} units."
+                    : $"Bought a box of {food.DisplayName}: {unitsPerBox} units for ${boxCost:0.00}.");
                 return;
             }
 

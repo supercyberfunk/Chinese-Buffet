@@ -4,10 +4,11 @@ using UnityEngine;
 namespace BuffetSim.Economy
 {
     /// <summary>
-    /// Owns the store's money. Nothing else mutates the balance: customers publish receipts,
-    /// stations publish purchase requests, thieves publish theft requests, coins publish recoveries,
-    /// and this component answers through the event bus. At the end of each day it splits the
-    /// profit between the store and the player's own cash (the 60/40 from the notes).
+    /// Owns the store's money and the player's own wallet. Nothing else mutates either: customers
+    /// publish receipts, stations publish purchase requests, thieves publish theft requests, coins
+    /// publish recoveries, fines arrive as expenses, and this component answers through the event
+    /// bus. At the end of each day it splits the profit between the store and the player's wallet
+    /// (the 60/40 from the notes). Bill rules from fortunes (comped, boosted, forgiven) live here too.
     /// </summary>
     public sealed class EconomyLedger : MonoBehaviour
     {
@@ -25,17 +26,27 @@ namespace BuffetSim.Economy
         private float _reputation;
         private bool _initialized;
 
+        // Bill rules (fortunes): comp the next N, boost the next N, forgive mistakes until a time.
+        private int _compNext;
+        private int _boostNext;
+        private float _boostMultiplier = 1f;
+        private float _forgiveUntil = float.NegativeInfinity;
+
         public float Balance => _balance;
-        /// <summary>The player's own money, paid out of each day's profit. Never spent by the store.</summary>
+        /// <summary>The player's own money: the daily cut plus anything picked up for themselves. Never spent by the store.</summary>
         public float PlayerCash => _playerCash;
+
+        private bool MistakesForgiven => Time.time < _forgiveUntil;
 
         public void Initialize(EconomyConfig economyConfig)
         {
             config = economyConfig;
             _balance = config.StartingMoney;
+            _playerCash = Mathf.Max(0f, config.StartingPlayerCash);
             _reputation = config.StartingReputation;
             _initialized = true;
             Publish(new MoneyChange { Delta = 0f, Balance = _balance, Reason = "Opening float" });
+            GameEvents.RaiseWalletChanged(_playerCash, 0f, "Lunch money");
         }
 
         private void OnEnable()
@@ -51,6 +62,10 @@ namespace BuffetSim.Economy
             GameEvents.DayStarted += OnDayStarted;
             GameEvents.DayEnded += OnDayEnded;
             GameEvents.ReputationChanged += OnReputationChanged;
+            GameEvents.WalletSpendRequested += OnWalletSpendRequested;
+            GameEvents.WalletCredited += OnWalletCredited;
+            GameEvents.ExpenseCharged += OnExpenseCharged;
+            GameEvents.BillModifierRequested += OnBillModifierRequested;
         }
 
         private void OnDisable()
@@ -66,28 +81,58 @@ namespace BuffetSim.Economy
             GameEvents.DayStarted -= OnDayStarted;
             GameEvents.DayEnded -= OnDayEnded;
             GameEvents.ReputationChanged -= OnReputationChanged;
+            GameEvents.WalletSpendRequested -= OnWalletSpendRequested;
+            GameEvents.WalletCredited -= OnWalletCredited;
+            GameEvents.ExpenseCharged -= OnExpenseCharged;
+            GameEvents.BillModifierRequested -= OnBillModifierRequested;
         }
 
         private void OnCustomerPaid(CustomerReceipt receipt)
         {
             if (!_initialized) return;
             _customersServed++;
-            _deductionsToday += receipt.Deductions;
 
-            if (receipt.Total <= 0f)
+            // Fortunes can rewrite the bill: forgiven mistakes drop the deductions, a comp zeroes it, a boost scales it.
+            float total = receipt.Total;
+            float deductions = receipt.Deductions;
+            string rule = string.Empty;
+            if (MistakesForgiven && deductions > 0f)
             {
-                GameEvents.RaiseNotice($"{receipt.CustomerName} left without paying: none of their {receipt.UnitsWanted} units could be served.");
+                total = receipt.BaseAmount;
+                deductions = 0f;
+                rule = " (mistakes forgiven)";
+            }
+            if (_compNext > 0 && total > 0f)
+            {
+                _compNext--;
+                GameEvents.RaiseNotice($"{receipt.CustomerName}'s ${total:0.00} bill is comped. Generosity is its own reward.");
+                total = 0f;
+                rule = " (comped)";
+            }
+            else if (_boostNext > 0 && total > 0f)
+            {
+                _boostNext--;
+                total *= _boostMultiplier;
+                rule = $" (x{_boostMultiplier:0.##}, everyone is hungry)";
+            }
+
+            _deductionsToday += deductions;
+
+            if (total <= 0f)
+            {
+                if (rule.Length == 0)
+                    GameEvents.RaiseNotice($"{receipt.CustomerName} left without paying: none of their {receipt.UnitsWanted} units could be served.");
                 Publish(new MoneyChange { Delta = 0f, Balance = _balance, Reason = $"{receipt.CustomerName}: $0", WorldPosition = receipt.WorldPosition, HasWorldPosition = true });
                 return;
             }
 
-            _balance += receipt.Total;
-            _revenueToday += receipt.Total;
-            string detail = receipt.Deductions > 0f
-                ? $"{receipt.CustomerName} paid ${receipt.Total:0.00} (${receipt.BaseAmount:0.00} minus ${receipt.Deductions:0.00} for {receipt.UnitsWanted - receipt.UnitsTaken} missing units)"
-                : $"{receipt.CustomerName} paid ${receipt.Total:0.00} in full";
+            _balance += total;
+            _revenueToday += total;
+            string detail = deductions > 0f
+                ? $"{receipt.CustomerName} paid ${total:0.00} (${receipt.BaseAmount:0.00} minus ${deductions:0.00} for {receipt.UnitsWanted - receipt.UnitsTaken} missing units){rule}"
+                : $"{receipt.CustomerName} paid ${total:0.00} in full{rule}";
             GameEvents.RaiseNotice(detail);
-            Publish(new MoneyChange { Delta = receipt.Total, Balance = _balance, Reason = receipt.CustomerName, WorldPosition = receipt.WorldPosition, HasWorldPosition = true });
+            Publish(new MoneyChange { Delta = total, Balance = _balance, Reason = receipt.CustomerName, WorldPosition = receipt.WorldPosition, HasWorldPosition = true });
         }
 
         private void OnCustomerLost(string customerName, Vector3 at)
@@ -115,6 +160,12 @@ namespace BuffetSim.Economy
         private void OnDishesBroken(int count, Vector3 at)
         {
             if (!_initialized || count <= 0) return;
+            if (MistakesForgiven)
+            {
+                GameEvents.RaiseNotice($"{count} dish{(count == 1 ? "" : "es")} broken. Forgiven.");
+                return;
+            }
+
             float penalty = count * config.BrokenDishPenalty;
             _balance = Mathf.Max(0f, _balance - penalty);
             _expensesToday += penalty;
@@ -135,7 +186,8 @@ namespace BuffetSim.Economy
         private void OnTheftRequested(TheftRequest request)
         {
             if (!_initialized || request == null || request.Taken > 0f) return;
-            float taken = Mathf.Clamp(request.RequestedAmount, 0f, _balance);
+            float wanted = request.RequestedFraction > 0f ? _balance * request.RequestedFraction : request.RequestedAmount;
+            float taken = Mathf.Clamp(wanted, 0f, _balance);
             request.Taken = taken;
             if (taken <= 0f)
             {
@@ -166,6 +218,19 @@ namespace BuffetSim.Economy
             Publish(new MoneyChange { Delta = -bribe, Balance = _balance, Reason = $"Hush money: {customerName}", WorldPosition = at, HasWorldPosition = true });
         }
 
+        /// <summary>Fines, the landlord, the plumber: the till pays what it can and the rest is written off.</summary>
+        private void OnExpenseCharged(float amount, string reason, Vector3 at)
+        {
+            if (!_initialized || amount <= 0f) return;
+            float paid = Mathf.Min(amount, _balance);
+            _balance -= paid;
+            _expensesToday += paid;
+            GameEvents.RaiseNotice(paid < amount
+                ? $"{reason}: -${amount:0.00} (the till only had ${paid:0.00})"
+                : $"{reason}: -${amount:0.00}");
+            Publish(new MoneyChange { Delta = -paid, Balance = _balance, Reason = reason, WorldPosition = at, HasWorldPosition = true });
+        }
+
         private void OnDineAndDashResolved(string customerName, bool caught, float amount)
         {
             if (!_initialized) return;
@@ -181,6 +246,48 @@ namespace BuffetSim.Economy
                 GameEvents.RaiseNotice($"{customerName} dined and dashed with ${amount:0.00}");
             }
             PublishSnapshot();
+        }
+
+        /// <summary>The player's own cash pays for the slot machine; the till is never touched.</summary>
+        private void OnWalletSpendRequested(WalletSpendRequest request)
+        {
+            if (!_initialized || request == null || request.Approved) return;
+            if (request.Amount > _playerCash + 0.0001f)
+            {
+                GameEvents.RaiseNotice($"Your wallet has ${_playerCash:0.00}; {request.Reason} costs ${request.Amount:0.00}.");
+                return;
+            }
+
+            _playerCash = Mathf.Max(0f, _playerCash - request.Amount);
+            request.Approved = true;
+            GameEvents.RaiseWalletChanged(_playerCash, -request.Amount, request.Reason);
+            PublishSnapshot();
+        }
+
+        /// <summary>Money for the player alone (slot payouts, fountain coins). Outside the split and the day's numbers.</summary>
+        private void OnWalletCredited(float amount, string reason, Vector3 at)
+        {
+            if (!_initialized || amount <= 0f) return;
+            _playerCash += amount;
+            GameEvents.RaiseWalletChanged(_playerCash, amount, reason);
+            PublishSnapshot();
+        }
+
+        private void OnBillModifierRequested(BillModifier modifier)
+        {
+            switch (modifier.Kind)
+            {
+                case BillModifierKind.CompNext:
+                    _compNext += Mathf.Max(1, modifier.Count);
+                    break;
+                case BillModifierKind.BoostNext:
+                    _boostNext += Mathf.Max(1, modifier.Count);
+                    _boostMultiplier = modifier.Multiplier > 0f ? modifier.Multiplier : 1.25f;
+                    break;
+                case BillModifierKind.ForgiveMistakes:
+                    _forgiveUntil = Mathf.Max(_forgiveUntil, Time.time) + Mathf.Max(0f, modifier.Seconds);
+                    break;
+            }
         }
 
         private void OnReputationChanged(float value, float delta, string reason)
@@ -238,6 +345,7 @@ namespace BuffetSim.Economy
 
             ResetDayCounters();
             Publish(new MoneyChange { Delta = -playerShare, Balance = _balance, Reason = $"Your cut, day {day}" });
+            if (playerShare > 0f) GameEvents.RaiseWalletChanged(_playerCash, playerShare, $"Your cut, day {day}");
         }
 
         private void ResetDayCounters()

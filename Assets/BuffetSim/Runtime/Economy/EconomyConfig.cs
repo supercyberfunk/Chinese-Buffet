@@ -53,8 +53,8 @@ namespace BuffetSim.Economy
         [SerializeField] private float lastCallSeconds = 60f;
         [Tooltip("After close, how long the stragglers get to finish before the lights go off.")]
         [SerializeField] private float closingGraceSeconds = 45f;
-        [Tooltip("How long the end-of-day summary stays up before the next day opens.")]
-        [SerializeField] private float summarySeconds = 12f;
+        [Tooltip("How long the end-of-day summary stays up before the next day opens (the fountain is open for part of it).")]
+        [SerializeField] private float summarySeconds = 20f;
         [Tooltip("Share of the day's profit the store keeps; the rest is the player's cut (60/40 in the notes).")]
         [Range(0f, 1f)] [SerializeField] private float storeShare = 0.6f;
 
@@ -96,6 +96,103 @@ namespace BuffetSim.Economy
         [SerializeField] private float eventMinGap = 45f;
         [Tooltip("No events for this long after the doors open.")]
         [SerializeField] private float eventQuietStart = 40f;
+
+        [Header("Robbery (its own counter, outside the event cap)")]
+        [Tooltip("A robbery is rolled once every this many customers (a random count between min and max).")]
+        [SerializeField] private int robberyEveryMinCustomers = 15;
+        [SerializeField] private int robberyEveryMaxCustomers = 20;
+        [Range(0f, 1f)] [SerializeField] private float robberyChance = 0.25f;
+        [Tooltip("Share of the till the robber takes (a random value between min and max).")]
+        [Range(0f, 1f)] [SerializeField] private float robberyMinTake = 0.02f;
+        [Range(0f, 1f)] [SerializeField] private float robberyMaxTake = 0.10f;
+        [Tooltip("Extra on top of the take when the player stops the robber (+20% in the notes).")]
+        [SerializeField] private float robberyCatchBonus = 0.20f;
+        [SerializeField] private int robberiesPerDay = 1;
+
+        [Header("Player wallet")]
+        [Tooltip("The player's own cash before the first payout, so the slot machine works on day 1.")]
+        [SerializeField] private float startingPlayerCash = 20f;
+
+        [Header("Repairs and fines")]
+        [SerializeField] private float glassPaneCost = 20f;
+        [SerializeField] private float ductTapeCost = 5f;
+        [SerializeField] private int ductTapeStrips = 3;
+        [Tooltip("The kitchen shelf gets this many lightbulbs every morning.")]
+        [SerializeField] private int lightbulbsPerDay = 6;
+        [Tooltip("What the landlord charges at close for a hole in the wall nobody patched.")]
+        [SerializeField] private float landlordPatchFee = 40f;
+        [Tooltip("What a customer's lawyer gets when an event is ignored long enough (toilet, ceiling tile).")]
+        [SerializeField] private float lawsuitFine = 50f;
+
+        [Header("Cooking")]
+        [Tooltip("On: cooler boxes come out frozen and go through a cooker before they fill a tray. Off: instant trays, like the first demo.")]
+        [SerializeField] private bool cookingEnabled = true;
+        [Tooltip("Cooked units of each food already sitting in the cooler on day 1.")]
+        [SerializeField] private int startingCookedStock = 20;
+        [SerializeField] private float fryerSeconds = 20f;
+        [SerializeField] private float wokSeconds = 25f;
+        [SerializeField] private float steamerSeconds = 25f;
+        [SerializeField] private float riceCookerSeconds = 30f;
+        [Tooltip("Clean flips the wok minigame needs before the timer starts.")]
+        [SerializeField] private int wokFlipsNeeded = 4;
+        [Tooltip("Finished food waits this long in the cooker before it starts to burn.")]
+        [SerializeField] private float burnGraceSeconds = 30f;
+        [Tooltip("After the grace period, a share of the batch burns every this many seconds.")]
+        [SerializeField] private float burnStepSeconds = 30f;
+        [Range(0f, 1f)] [SerializeField] private float burnStepFraction = 0.25f;
+
+        [Header("To-go phone orders")]
+        [SerializeField] private bool phoneOrdersEnabled = true;
+        [SerializeField] private float phoneFirstCallSeconds = 60f;
+        [Tooltip("Gap between one call ending and the next ringing (a random value between min and max, shortened by satisfaction).")]
+        [SerializeField] private float phoneCallGapMin = 45f;
+        [SerializeField] private float phoneCallGapMax = 90f;
+        [SerializeField] private int phoneCallsDayOne = 3;
+        [SerializeField] private int phoneCallsAddedPerDay = 1;
+        [SerializeField] private int phoneCallsMax = 8;
+        [Tooltip("How long the phone rings before the caller gives up.")]
+        [SerializeField] private float phoneRingSeconds = 20f;
+        [Tooltip("How long the caller's words stay on screen. After that you have to remember the order.")]
+        [SerializeField] private float phoneReadSeconds = 10f;
+        [SerializeField] private float phoneOrderSeconds = 150f;
+        [SerializeField] private int phoneOrderMinItems = 2;
+        [SerializeField] private int phoneOrderMaxItems = 4;
+        [SerializeField] private int phoneOrderMaxUnits = 5;
+        [Tooltip("To-go is priced per unit, not per head.")]
+        [SerializeField] private float toGoUnitPrice = 3f;
+        [SerializeField] private int toGoBoxMaxPerItem = 3;
+        [SerializeField] private int toGoBoxMaxUnits = 10;
+        [SerializeField] private float phoneMissedReputation = -1f;
+        [SerializeField] private float phoneExpiredReputation = -3f;
+
+        [Header("Slot machine (chance per pull; whatever is left over pays nothing)")]
+        [Tooltip("Paid from the player's own wallet, never the till.")]
+        [SerializeField] private float slotPullCost = 5f;
+        [SerializeField] private float slotSpinSeconds = 3f;
+        [Range(0f, 1f)] [SerializeField] private float slotCookieChance = 0.30f;
+        [Range(0f, 1f)] [SerializeField] private float slotEggRollChance = 0.10f;
+        [SerializeField] private float slotEggRollPayout = 5f;
+        [Range(0f, 1f)] [SerializeField] private float slotCatChance = 0.05f;
+        [SerializeField] private float slotCatPayout = 15f;
+        [Range(0f, 1f)] [SerializeField] private float slotDragonChance = 0.02f;
+        [SerializeField] private float slotDragonPayout = 50f;
+        [Range(0f, 1f)] [SerializeField] private float slotEightsChance = 0.005f;
+        [SerializeField] private float slotEightsPayout = 200f;
+        [Tooltip("Cookie chance once the wall of fortune is full.")]
+        [Range(0f, 1f)] [SerializeField] private float slotCookieChanceAfterWall = 0.5f;
+        [Tooltip("What was already rattling around the machine's cash box before you.")]
+        [SerializeField] private float slotCashBoxStart = 412f;
+        [SerializeField] private int pocketCookieLimit = 5;
+        [SerializeField] private float quarterValue = 0.25f;
+
+        [Header("Fountain")]
+        [Tooltip("The night's wishing money lands between min and max, at satisfaction percent of the way.")]
+        [SerializeField] private float fountainMinPayout = 2f;
+        [SerializeField] private float fountainMaxPayout = 8f;
+        [SerializeField] private float fountainOpenSeconds = 15f;
+        [Tooltip("Coins scooped per second of holding E in the water (a random count between min and max).")]
+        [SerializeField] private int fountainScoopMinCoins = 1;
+        [SerializeField] private int fountainScoopMaxCoins = 3;
 
         public float StartingMoney => startingMoney;
         public float BaseCustomerBill => baseCustomerBill;
@@ -153,6 +250,75 @@ namespace BuffetSim.Economy
         public int MaxEventsPerDay => maxEventsPerDay;
         public float EventMinGap => eventMinGap;
         public float EventQuietStart => eventQuietStart;
+
+        public int RobberyEveryMinCustomers => robberyEveryMinCustomers;
+        public int RobberyEveryMaxCustomers => robberyEveryMaxCustomers;
+        public float RobberyChance => robberyChance;
+        public float RobberyMinTake => robberyMinTake;
+        public float RobberyMaxTake => robberyMaxTake;
+        public float RobberyCatchBonus => robberyCatchBonus;
+        public int RobberiesPerDay => robberiesPerDay;
+
+        public float StartingPlayerCash => startingPlayerCash;
+
+        public float GlassPaneCost => glassPaneCost;
+        public float DuctTapeCost => ductTapeCost;
+        public int DuctTapeStrips => ductTapeStrips;
+        public int LightbulbsPerDay => lightbulbsPerDay;
+        public float LandlordPatchFee => landlordPatchFee;
+        public float LawsuitFine => lawsuitFine;
+
+        public bool CookingEnabled => cookingEnabled;
+        public int StartingCookedStock => startingCookedStock;
+        public float FryerSeconds => fryerSeconds;
+        public float WokSeconds => wokSeconds;
+        public float SteamerSeconds => steamerSeconds;
+        public float RiceCookerSeconds => riceCookerSeconds;
+        public int WokFlipsNeeded => wokFlipsNeeded;
+        public float BurnGraceSeconds => burnGraceSeconds;
+        public float BurnStepSeconds => burnStepSeconds;
+        public float BurnStepFraction => burnStepFraction;
+
+        public bool PhoneOrdersEnabled => phoneOrdersEnabled;
+        public float PhoneFirstCallSeconds => phoneFirstCallSeconds;
+        public float PhoneCallGapMin => phoneCallGapMin;
+        public float PhoneCallGapMax => phoneCallGapMax;
+        public int PhoneCallsDayOne => phoneCallsDayOne;
+        public int PhoneCallsAddedPerDay => phoneCallsAddedPerDay;
+        public int PhoneCallsMax => phoneCallsMax;
+        public float PhoneRingSeconds => phoneRingSeconds;
+        public float PhoneReadSeconds => phoneReadSeconds;
+        public float PhoneOrderSeconds => phoneOrderSeconds;
+        public int PhoneOrderMinItems => phoneOrderMinItems;
+        public int PhoneOrderMaxItems => phoneOrderMaxItems;
+        public int PhoneOrderMaxUnits => phoneOrderMaxUnits;
+        public float ToGoUnitPrice => toGoUnitPrice;
+        public int ToGoBoxMaxPerItem => toGoBoxMaxPerItem;
+        public int ToGoBoxMaxUnits => toGoBoxMaxUnits;
+        public float PhoneMissedReputation => phoneMissedReputation;
+        public float PhoneExpiredReputation => phoneExpiredReputation;
+
+        public float SlotPullCost => slotPullCost;
+        public float SlotSpinSeconds => slotSpinSeconds;
+        public float SlotCookieChance => slotCookieChance;
+        public float SlotEggRollChance => slotEggRollChance;
+        public float SlotEggRollPayout => slotEggRollPayout;
+        public float SlotCatChance => slotCatChance;
+        public float SlotCatPayout => slotCatPayout;
+        public float SlotDragonChance => slotDragonChance;
+        public float SlotDragonPayout => slotDragonPayout;
+        public float SlotEightsChance => slotEightsChance;
+        public float SlotEightsPayout => slotEightsPayout;
+        public float SlotCookieChanceAfterWall => slotCookieChanceAfterWall;
+        public float SlotCashBoxStart => slotCashBoxStart;
+        public int PocketCookieLimit => pocketCookieLimit;
+        public float QuarterValue => quarterValue;
+
+        public float FountainMinPayout => fountainMinPayout;
+        public float FountainMaxPayout => fountainMaxPayout;
+        public float FountainOpenSeconds => fountainOpenSeconds;
+        public int FountainScoopMinCoins => fountainScoopMinCoins;
+        public int FountainScoopMaxCoins => fountainScoopMaxCoins;
 
         public static EconomyConfig CreateDefault()
         {

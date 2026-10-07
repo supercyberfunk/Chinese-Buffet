@@ -16,11 +16,20 @@ namespace BuffetSim.UI
         private const int MaxLogLines = 7;
         private const float SatisfactionReasonSeconds = 3f;
         private const float EventOutcomeSeconds = 5f;
+        private const float StatusPollSeconds = 0.25f;
 
         private static readonly Color GainColor = new Color(0.35f, 1f, 0.45f);
         private static readonly Color LossColor = new Color(1f, 0.4f, 0.35f);
         private static readonly Color WarmColor = new Color(1f, 0.72f, 0.25f);
         private static readonly Color DimColor = new Color(0.75f, 0.75f, 0.8f);
+        private static readonly Color WalletColor = new Color(0.8f, 0.9f, 1f);
+
+        private struct Outcome
+        {
+            public string Text;
+            public Color Color;
+            public float Until;
+        }
 
         private Font _font;
         private Text _balanceText;
@@ -33,22 +42,35 @@ namespace BuffetSim.UI
         private Text _eventText;
         private GameObject _summaryPanel;
         private Text _summaryText;
+        private Text _walletText;
+        private Text _pocketText;
+        private Text _effectsText;
         private PlayerInventory _inventory;
+        private PlayerPocket _pocket;
+        private PlayerEffects _effects;
+        private readonly List<ChaosEventInfo> _activeEvents = new List<ChaosEventInfo>();
+        private readonly List<Outcome> _outcomes = new List<Outcome>();
+        private float _walletFlash;
+        private Color _walletFlashColor = Color.white;
+        private float _statusTimer;
         private readonly List<string> _log = new List<string>();
         private float _balanceFlash;
         private Color _balanceFlashColor = Color.white;
         private float _satisfactionFlash;
         private Color _satisfactionFlashColor = Color.white;
         private string _satisfactionBase = "Satisfaction --";
-        private float _eventTimer;
 
-        public void Initialize(Font font, PlayerInventory inventory)
+        public void Initialize(Font font, PlayerInventory inventory, PlayerPocket pocket = null, PlayerEffects effects = null)
         {
             _font = font;
             _inventory = inventory;
+            _pocket = pocket;
+            _effects = effects;
             if (_inventory != null) _inventory.Changed += RefreshCarry;
+            if (_pocket != null) _pocket.Changed += RefreshPocket;
             BuildCanvas();
             RefreshCarry();
+            RefreshPocket();
         }
 
         private void OnEnable()
@@ -64,6 +86,8 @@ namespace BuffetSim.UI
             GameEvents.ReputationChanged += OnReputationChanged;
             GameEvents.ChaosEventStarted += OnChaosEventStarted;
             GameEvents.ChaosEventEnded += OnChaosEventEnded;
+            GameEvents.WalletChanged += OnWalletChanged;
+            GameEvents.WalletCredited += OnWalletCredited;
         }
 
         private void OnDisable()
@@ -79,7 +103,10 @@ namespace BuffetSim.UI
             GameEvents.ReputationChanged -= OnReputationChanged;
             GameEvents.ChaosEventStarted -= OnChaosEventStarted;
             GameEvents.ChaosEventEnded -= OnChaosEventEnded;
+            GameEvents.WalletChanged -= OnWalletChanged;
+            GameEvents.WalletCredited -= OnWalletCredited;
             if (_inventory != null) _inventory.Changed -= RefreshCarry;
+            if (_pocket != null) _pocket.Changed -= RefreshPocket;
         }
 
         private void Update()
@@ -103,11 +130,33 @@ namespace BuffetSim.UI
                 }
             }
 
-            if (_eventText != null && _eventTimer > 0f)
+            if (_walletText != null && _walletFlash > 0f)
             {
-                _eventTimer -= dt;
-                if (_eventTimer <= 0f) _eventText.text = string.Empty;
+                _walletFlash -= dt;
+                _walletText.color = Color.Lerp(WalletColor, _walletFlashColor, Mathf.Clamp01(_walletFlash));
             }
+
+            if (_outcomes.Count > 0 && FirstOutcomeExpired())
+            {
+                _outcomes.RemoveAll(o => o.Until <= Time.time);
+                RefreshEventBanner();
+            }
+
+            _statusTimer -= dt;
+            if (_statusTimer <= 0f)
+            {
+                _statusTimer = StatusPollSeconds;
+                if (_effectsText != null) _effectsText.text = _effects != null ? _effects.StatusLine : string.Empty;
+            }
+        }
+
+        private bool FirstOutcomeExpired()
+        {
+            for (int i = 0; i < _outcomes.Count; i++)
+            {
+                if (_outcomes[i].Until <= Time.time) return true;
+            }
+            return false;
         }
 
         private void BuildCanvas()
@@ -126,13 +175,18 @@ namespace BuffetSim.UI
             _balanceText = MakeText(root, "Balance", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -20f), new Vector2(700f, 70f), 48, TextAnchor.UpperLeft, FontStyle.Bold);
             _statsText = MakeText(root, "Stats", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -92f), new Vector2(900f, 60f), 22, TextAnchor.UpperLeft, FontStyle.Normal);
             _satisfactionText = MakeText(root, "Satisfaction", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -148f), new Vector2(900f, 34f), 22, TextAnchor.UpperLeft, FontStyle.Bold);
-            _carryText = MakeText(root, "Carry", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -186f), new Vector2(700f, 40f), 24, TextAnchor.UpperLeft, FontStyle.Bold);
+            _carryText = MakeText(root, "Carry", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -186f), new Vector2(900f, 40f), 24, TextAnchor.UpperLeft, FontStyle.Bold);
+            _pocketText = MakeText(root, "Pocket", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -222f), new Vector2(900f, 34f), 22, TextAnchor.UpperLeft, FontStyle.Normal);
+            _effectsText = MakeText(root, "Effects", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -256f), new Vector2(1000f, 34f), 22, TextAnchor.UpperLeft, FontStyle.Bold);
+            _effectsText.color = WarmColor;
+            _walletText = MakeText(root, "Wallet", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(380f, -30f), new Vector2(420f, 50f), 30, TextAnchor.UpperLeft, FontStyle.Bold);
+            _walletText.color = WalletColor;
             _dayText = MakeText(root, "Day", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -20f), new Vector2(800f, 60f), 36, TextAnchor.MiddleCenter, FontStyle.Bold);
             _eventText = MakeText(root, "Event", new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(0f, -150f), new Vector2(1000f, 130f), 28, TextAnchor.UpperCenter, FontStyle.Bold);
             _promptText = MakeText(root, "Prompt", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 140f), new Vector2(1200f, 60f), 28, TextAnchor.MiddleCenter, FontStyle.Bold);
             _logText = MakeText(root, "Log", new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f, 20f), new Vector2(1100f, 220f), 20, TextAnchor.LowerLeft, FontStyle.Normal);
-            Text help = MakeText(root, "Help", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -20f), new Vector2(560f, 200f), 20, TextAnchor.UpperRight, FontStyle.Normal);
-            help.text = "WASD move  |  Mouse look  |  Shift sprint  |  Space jump\nE interact / tackle  |  Q drop  |  Esc free cursor (click to re-lock)\n\nLoop: buy food at the cooler (back), refill trays,\nclear plates from tables, load the dishwasher.\nRed !! over a customer: they're about to run. Tackle with E.";
+            Text help = MakeText(root, "Help", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -20f), new Vector2(760f, 220f), 19, TextAnchor.UpperRight, FontStyle.Normal);
+            help.text = "WASD move  |  Mouse look  |  Shift sprint  |  Space jump\nE interact (hold E when the prompt shows a bar)  |  Q drop / cancel\nLeft click throw or use pocket item  |  Tab next item  |  R crack a cookie\nEsc free cursor (click to re-lock)  |  F1 debug keys\n\nLoop: buy food at the cooler (back), refill trays,\nclear plates from tables, load the dishwasher.\nRed !! over a customer: they're about to run. Tackle with E.";
             help.color = new Color(1f, 1f, 1f, 0.8f);
             Text crosshair = MakeText(root, "Crosshair", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(40f, 40f), 28, TextAnchor.MiddleCenter, FontStyle.Normal);
             crosshair.text = "+";
@@ -141,11 +195,14 @@ namespace BuffetSim.UI
             BuildSummaryPanel(root);
 
             _balanceText.text = "$0.00";
+            _walletText.text = string.Empty;
+            _pocketText.text = string.Empty;
+            _effectsText.text = string.Empty;
             _statsText.text = string.Empty;
             _satisfactionText.text = _satisfactionBase;
             _dayText.text = string.Empty;
             _eventText.text = string.Empty;
-            _eventText.color = WarmColor;
+            _eventText.color = Color.white;
             _promptText.text = string.Empty;
             _logText.text = string.Empty;
         }
@@ -156,16 +213,17 @@ namespace BuffetSim.UI
             _summaryPanel = new GameObject("Day Summary");
             _summaryPanel.transform.SetParent(root, false);
             RectTransform rect = _summaryPanel.AddComponent<RectTransform>();
-            rect.anchorMin = new Vector2(0.5f, 0.5f);
-            rect.anchorMax = new Vector2(0.5f, 0.5f);
-            rect.pivot = new Vector2(0.5f, 0.5f);
-            rect.anchoredPosition = new Vector2(0f, 20f);
-            rect.sizeDelta = new Vector2(820f, 600f);
+            // Right of centre, so the fountain (and the scramble for it at close) stays in view.
+            rect.anchorMin = new Vector2(1f, 0.5f);
+            rect.anchorMax = new Vector2(1f, 0.5f);
+            rect.pivot = new Vector2(1f, 0.5f);
+            rect.anchoredPosition = new Vector2(-40f, 0f);
+            rect.sizeDelta = new Vector2(760f, 640f);
             Image background = _summaryPanel.AddComponent<Image>();
             background.color = new Color(0.02f, 0.02f, 0.05f, 0.82f);
             background.raycastTarget = false;
 
-            _summaryText = MakeText(_summaryPanel.transform, "Summary", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760f, 560f), 26, TextAnchor.MiddleCenter, FontStyle.Normal);
+            _summaryText = MakeText(_summaryPanel.transform, "Summary", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(700f, 600f), 24, TextAnchor.MiddleCenter, FontStyle.Normal);
             _summaryText.text = string.Empty;
             _summaryPanel.SetActive(false);
         }
@@ -240,6 +298,28 @@ namespace BuffetSim.UI
             _carryText.text = _inventory.Describe();
         }
 
+        private void RefreshPocket()
+        {
+            if (_pocketText == null) return;
+            _pocketText.text = _pocket != null ? _pocket.Describe() : string.Empty;
+        }
+
+        private void OnWalletChanged(float total, float delta, string reason)
+        {
+            if (_walletText == null) return;
+            _walletText.text = $"Wallet ${total:0.00}";
+            if (Mathf.Abs(delta) < 0.005f) return;
+            _walletFlashColor = delta > 0f ? GainColor : LossColor;
+            _walletFlash = 1f;
+        }
+
+        /// <summary>Quarters and payouts for the player alone float up in silver, apart from the till's gold.</summary>
+        private void OnWalletCredited(float amount, string reason, Vector3 at)
+        {
+            if (amount <= 0f || at == Vector3.zero) return;
+            FloatingText.Spawn(at + Vector3.up * 1.6f, $"+${amount:0.00} (you)", WalletColor, _font);
+        }
+
         private void OnDayStarted(int day)
         {
             if (_summaryPanel != null) _summaryPanel.SetActive(false);
@@ -254,10 +334,10 @@ namespace BuffetSim.UI
         {
             RefreshDayLine(snapshot);
             // The scheduler aborts any running event at close without a final outcome, so drop its banner here.
-            if (snapshot.Phase == DayPhase.Closed && _eventText != null)
+            if (snapshot.Phase == DayPhase.Closed)
             {
-                _eventText.text = string.Empty;
-                _eventTimer = 0f;
+                _activeEvents.Clear();
+                RefreshEventBanner();
             }
         }
 
@@ -354,18 +434,44 @@ namespace BuffetSim.UI
 
         private void OnChaosEventStarted(ChaosEventInfo info)
         {
-            if (_eventText == null) return;
-            _eventText.text = $"<size=44>{info.DisplayName}</size>\n{info.Description}";
-            _eventText.color = WarmColor;
-            _eventTimer = 0f; // stays up until the event ends
+            // Stays up until the event ends; several can run at once (fortunes and robberies stack on the day's events).
+            _activeEvents.Add(info);
+            RefreshEventBanner();
         }
 
         private void OnChaosEventEnded(ChaosEventInfo info, bool resolved, string outcome)
         {
+            for (int i = 0; i < _activeEvents.Count; i++)
+            {
+                if (_activeEvents[i].Id != info.Id) continue;
+                _activeEvents.RemoveAt(i);
+                break;
+            }
+            _outcomes.Add(new Outcome
+            {
+                Text = $"<size=34>{info.DisplayName}</size>\n{outcome}",
+                Color = resolved ? GainColor : LossColor,
+                Until = Time.time + EventOutcomeSeconds,
+            });
+            RefreshEventBanner();
+        }
+
+        private void RefreshEventBanner()
+        {
             if (_eventText == null) return;
-            _eventText.text = $"<size=44>{info.DisplayName}</size>\n{outcome}";
-            _eventText.color = resolved ? GainColor : LossColor;
-            _eventTimer = EventOutcomeSeconds;
+            var banner = new System.Text.StringBuilder();
+            for (int i = 0; i < _activeEvents.Count; i++)
+            {
+                if (banner.Length > 0) banner.Append('\n');
+                banner.Append($"<color=#{ColorUtility.ToHtmlStringRGB(WarmColor)}><size={(_activeEvents.Count > 1 ? 34 : 44)}>{_activeEvents[i].DisplayName}</size>\n{_activeEvents[i].Description}</color>");
+            }
+            for (int i = 0; i < _outcomes.Count; i++)
+            {
+                if (banner.Length > 0) banner.Append('\n');
+                banner.Append($"<color=#{ColorUtility.ToHtmlStringRGB(_outcomes[i].Color)}>{_outcomes[i].Text}</color>");
+            }
+            _eventText.text = banner.ToString();
+            _eventText.color = Color.white;
         }
     }
 }

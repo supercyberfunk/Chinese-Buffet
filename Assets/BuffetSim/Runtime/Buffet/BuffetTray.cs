@@ -82,7 +82,10 @@ namespace BuffetSim.Buffet
             string state = $"{foodName} tray: {units}/{capacity}";
             if (inventory == null) return state;
 
-            if (inventory.IsHoldingFood && inventory.HeldFood == food)
+            if (inventory.IsHoldingRawFood && inventory.HeldFood == food)
+                return $"{state} - that {foodName} is raw. Cook it first";
+
+            if (inventory.IsHoldingCookedFood && inventory.HeldFood == food)
             {
                 return IsFull
                     ? $"{state} (full)"
@@ -97,7 +100,7 @@ namespace BuffetSim.Buffet
 
         public void Interact(PlayerInventory inventory)
         {
-            if (inventory == null || !inventory.IsHoldingFood || inventory.HeldFood != food) return;
+            if (inventory == null || !inventory.IsHoldingCookedFood || inventory.HeldFood != food) return;
             if (IsFull)
             {
                 GameEvents.RaiseNotice($"{food.DisplayName} tray is already full.");

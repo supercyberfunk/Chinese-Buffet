@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using BuffetSim.Bootstrap;
 using BuffetSim.Core;
 using UnityEngine;
@@ -7,7 +8,8 @@ namespace BuffetSim.Items
     /// <summary>
     /// A coin that sprays out of a knocked-out dasher or thief (the "Sonic rings" moment from the
     /// notes), lands on the floor and gets sucked into the player when they walk near it. Picking one
-    /// up publishes <see cref="GameEvents.MoneyRecovered"/>; the ledger decides what that is worth.
+    /// up publishes <see cref="GameEvents.MoneyRecovered"/> (back into the till) or, for quarters from
+    /// the slot machine and the fountain, <see cref="GameEvents.WalletCredited"/> (your own pocket).
     /// Coins left on the floor disappear when the day ends.
     /// </summary>
     public sealed class CoinPickup : MonoBehaviour
@@ -19,6 +21,8 @@ namespace BuffetSim.Items
         private const float RestHeight = 0.12f;
 
         private static readonly Color CoinColor = new Color(1f, 0.84f, 0.2f);
+        private static readonly Color QuarterColor = new Color(0.78f, 0.8f, 0.82f);
+        private static readonly List<CoinPickup> ActiveCoins = new List<CoinPickup>();
 
         private float _amount;
         private string _reason;
@@ -29,12 +33,19 @@ namespace BuffetSim.Items
         private float _age;
         private bool _landed;
         private bool _collected;
+        private bool _toWallet;
+
+        /// <summary>Coins currently on the floor (customers pocket stray quarters).</summary>
+        public static IReadOnlyList<CoinPickup> Active => ActiveCoins;
+        public bool IsLanded => _landed && !_collected;
+        public bool ToWallet => _toWallet;
+        public float Amount => _amount;
 
         /// <summary>
         /// Sprays <paramref name="totalAmount"/> as <paramref name="coinCount"/> coins around
         /// <paramref name="origin"/>. The collector defaults to the main camera's rig (the player).
         /// </summary>
-        public static void Burst(Vector3 origin, float totalAmount, int coinCount, string reason, Transform collector = null)
+        public static void Burst(Vector3 origin, float totalAmount, int coinCount, string reason, Transform collector = null, bool toWallet = false)
         {
             if (totalAmount <= 0f) return;
             coinCount = Mathf.Max(1, coinCount);
@@ -47,13 +58,15 @@ namespace BuffetSim.Items
                 float angle = (360f / coinCount) * i + Random.Range(-18f, 18f);
                 float distance = Random.Range(0.8f, 2.4f);
                 Vector3 offset = Quaternion.Euler(0f, angle, 0f) * Vector3.forward * distance;
-                Spawn(origin + Vector3.up * 1.0f, origin + offset, perCoin, reason, collector);
+                Spawn(origin + Vector3.up * 1.0f, origin + offset, perCoin, reason, collector, toWallet);
             }
         }
 
-        public static CoinPickup Spawn(Vector3 from, Vector3 landing, float amount, string reason, Transform collector)
+        public static CoinPickup Spawn(Vector3 from, Vector3 landing, float amount, string reason, Transform collector, bool toWallet = false)
         {
-            GameObject go = PrimitiveFactory.Visual("Coin", PrimitiveType.Cylinder, null, from, new Vector3(0.22f, 0.02f, 0.22f), MaterialLibrary.Get(CoinColor));
+            if (collector == null && Camera.main != null) collector = Camera.main.transform;
+            GameObject go = PrimitiveFactory.Visual(toWallet ? "Quarter" : "Coin", PrimitiveType.Cylinder, null, from,
+                toWallet ? new Vector3(0.16f, 0.015f, 0.16f) : new Vector3(0.22f, 0.02f, 0.22f), MaterialLibrary.Get(toWallet ? QuarterColor : CoinColor));
             go.transform.rotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
             var coin = go.AddComponent<CoinPickup>();
             coin._amount = amount;
@@ -62,17 +75,29 @@ namespace BuffetSim.Items
             coin._start = from;
             coin._landing = new Vector3(landing.x, RestHeight, landing.z);
             coin._arcHeight = Random.Range(0.8f, 1.6f);
+            coin._toWallet = toWallet;
             return coin;
         }
 
         private void OnEnable()
         {
+            ActiveCoins.Add(this);
             GameEvents.DayEnded += OnDayEnded;
         }
 
         private void OnDisable()
         {
+            ActiveCoins.Remove(this);
             GameEvents.DayEnded -= OnDayEnded;
+        }
+
+        /// <summary>Someone else got there first (a customer pocketed the quarter): gone, nothing credited.</summary>
+        public bool Snatch()
+        {
+            if (_collected || !_landed) return false;
+            _collected = true;
+            Destroy(gameObject);
+            return true;
         }
 
         private void Update()
@@ -111,7 +136,8 @@ namespace BuffetSim.Items
         private void Collect()
         {
             _collected = true;
-            GameEvents.RaiseMoneyRecovered(_amount, _reason, transform.position);
+            if (_toWallet) GameEvents.RaiseWalletCredited(_amount, _reason, transform.position);
+            else GameEvents.RaiseMoneyRecovered(_amount, _reason, transform.position);
             Destroy(gameObject);
         }
 
