@@ -16,6 +16,8 @@ namespace BuffetSim.Player
         private const float AbductRiseSeconds = 3f;
         private const float AbductHeight = 9f;
         private const float MinAbductSeconds = 4f;
+        /// <summary>How often the status line (with its countdowns) is re-read for the HUD.</summary>
+        private const float StatusPublishSeconds = 0.25f;
 
         private CharacterController _controller;
         private PlayerInventory _inventory;
@@ -37,6 +39,8 @@ namespace BuffetSim.Player
         private int _appliedFoodCap;
         private float _stumbleUntil = float.NegativeInfinity;
         private float _knockedDownUntil = float.NegativeInfinity;
+        private string _publishedStatus;
+        private float _statusTimer;
 
         private bool _abducted;
         private float _abductTimer;
@@ -143,6 +147,11 @@ namespace BuffetSim.Player
                     _slipEveryUntil = now + seconds;
                     _slipEveryTimer = _slipEveryInterval;
                     break;
+                case PlayerEffectKind.Slip:
+                    // A puddle underfoot. Empty hands walk through it; full hands go down with the load.
+                    if (_inventory != null && _inventory.HandsFree) break;
+                    TrySlip(string.IsNullOrEmpty(effect.Source) ? "Slipped" : effect.Source);
+                    break;
                 case PlayerEffectKind.PlateCapacity:
                     _plateCap = Mathf.Max(1, Mathf.RoundToInt(effect.Value));
                     _plateCapUntil = now + seconds;
@@ -197,6 +206,7 @@ namespace BuffetSim.Player
         {
             float now = Time.time;
             float dt = Time.deltaTime;
+            PublishStatus(dt);
 
             if (_abducted)
             {
@@ -218,6 +228,18 @@ namespace BuffetSim.Player
             int wantPlates = now < _plateCapUntil ? _plateCap : 0;
             int wantFood = now < _foodCapUntil ? _foodCap : 0;
             if (wantPlates != _appliedPlateCap || wantFood != _appliedFoodCap) ApplyCaps();
+        }
+
+        /// <summary>The HUD never reads this component; it gets the line over the bus whenever the words change.</summary>
+        private void PublishStatus(float dt)
+        {
+            _statusTimer -= dt;
+            if (_statusTimer > 0f) return;
+            _statusTimer = StatusPublishSeconds;
+            string line = StatusLine;
+            if (line == _publishedStatus) return;
+            _publishedStatus = line;
+            GameEvents.RaisePlayerStatusChanged(line);
         }
 
         private void ApplyCaps()

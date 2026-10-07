@@ -107,7 +107,8 @@ namespace BuffetSim.Events
             };
 
             GameEvents.RaiseNotice("A man in a windbreaker just walked in. He did not look at the menu. (audio cue: the door chime, one note short)");
-            Vector3 behindRegister = ChaosActors.SampleNavMesh(Ctx.RegisterPoint + new Vector3(0f, 0f, 1f), 2f);
+            // The customers stand on the door side of the counter; staff stand on the room side, a counter's depth further in.
+            Vector3 behindRegister = ChaosActors.SampleNavMesh(Ctx.RegisterPoint + new Vector3(0f, 0f, 2.4f), 2f);
             _npc.GoTo(behindRegister, OnReachedRegister);
         }
 
@@ -135,7 +136,7 @@ namespace BuffetSim.Events
             _atRegister = true;
             Subscribe();
 
-            // Face the room, the way staff do.
+            // Face the customers across the counter, the way staff do.
             Vector3 toRegister = Ctx.RegisterPoint - _figure.transform.position;
             toRegister.y = 0f;
             if (toRegister.sqrMagnitude > 0.01f) _figure.transform.rotation = Quaternion.LookRotation(toRegister);
@@ -144,11 +145,12 @@ namespace BuffetSim.Events
             GameEvents.RaiseNotice("The stranger is standing behind your register. He has not said a word and he is not going to. (audio cue: a windbreaker rustling, a till drawer that was already open)");
         }
 
-        private void OnCustomerPaid(CustomerReceipt receipt)
+        /// <summary>Only what the ledger actually put in the till can come out again: a comped bill leaves him nothing to pocket.</summary>
+        private void OnCustomerCharged(string customerName, float credited, Vector3 where)
         {
-            if (IsFinished || _down || _leaving || !_atRegister || receipt.Total <= 0f) return;
+            if (IsFinished || _down || _leaving || !_atRegister || credited <= 0f) return;
             Vector3 at = _figure != null ? _figure.transform.position : Ctx.RegisterPoint;
-            var request = new TheftRequest(receipt.Total, ThiefName, at);
+            var request = new TheftRequest(credited, ThiefName, at);
             GameEvents.RaiseTheftRequested(request);
             float got = Mathf.Max(0f, request.Taken);
             if (got <= 0f) return;
@@ -244,14 +246,14 @@ namespace BuffetSim.Events
         {
             if (_listening) return;
             _listening = true;
-            GameEvents.CustomerPaid += OnCustomerPaid;
+            GameEvents.CustomerCharged += OnCustomerCharged;
         }
 
         private void Unsubscribe()
         {
             if (!_listening) return;
             _listening = false;
-            GameEvents.CustomerPaid -= OnCustomerPaid;
+            GameEvents.CustomerCharged -= OnCustomerCharged;
         }
 
         public override void Abort()

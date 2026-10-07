@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using BuffetSim.Core;
 using UnityEngine;
 
 namespace BuffetSim.Player
@@ -35,7 +36,14 @@ namespace BuffetSim.Player
         public bool IsEmpty => _entries.Count == 0;
         public Entry Selected => _entries.Count > 0 ? _entries[Mathf.Clamp(_selected, 0, _entries.Count - 1)] : null;
 
+        /// <summary>Fires on every change; the same change goes out on the bus as <see cref="GameEvents.PlayerPocketChanged"/> for the HUD.</summary>
         public event Action Changed;
+
+        private void Publish()
+        {
+            Changed?.Invoke();
+            GameEvents.RaisePlayerPocketChanged(Describe());
+        }
 
         public int Count(string id)
         {
@@ -63,7 +71,7 @@ namespace BuffetSim.Player
             entry.Count += added;
             if (entry.Count <= 0) _entries.Remove(entry);
             ClampSelection();
-            Changed?.Invoke();
+            Publish();
             return added;
         }
 
@@ -81,7 +89,7 @@ namespace BuffetSim.Player
             entry.Count -= count;
             if (entry.Count <= 0) _entries.Remove(entry);
             ClampSelection();
-            Changed?.Invoke();
+            Publish();
             return true;
         }
 
@@ -89,7 +97,7 @@ namespace BuffetSim.Player
         {
             if (_entries.Count <= 1) return;
             _selected = (_selected + 1) % _entries.Count;
-            Changed?.Invoke();
+            Publish();
         }
 
         /// <summary>Everything goes (the mop takes what's left at close; aliens are not careful).</summary>
@@ -99,7 +107,7 @@ namespace BuffetSim.Player
             if (entry == null) return;
             _entries.Remove(entry);
             ClampSelection();
-            Changed?.Invoke();
+            Publish();
         }
 
         /// <summary>"Pocket: [Rock] Dodgeball x3  Cookie x2" with the selected one in brackets; empty when nothing is carried.</summary>

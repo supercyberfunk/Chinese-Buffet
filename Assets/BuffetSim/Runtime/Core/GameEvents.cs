@@ -164,6 +164,8 @@ namespace BuffetSim.Core
         NoSlip,
         /// <summary>You slip on dry floor every Value seconds for Seconds.</summary>
         SlipEvery,
+        /// <summary>One slip right now, if you can slip at all: a stumble, and whatever you carry hits the floor.</summary>
+        Slip,
         /// <summary>Plate cap becomes Value for Seconds.</summary>
         PlateCapacity,
         /// <summary>Unit cap on a carried tray becomes Value for Seconds.</summary>
@@ -272,6 +274,22 @@ namespace BuffetSim.Core
     }
 
     /// <summary>
+    /// Asks the scheduler to start the event with this id right now. It answers synchronously:
+    /// <see cref="Accepted"/> is true once a runner is live, false after close, for an unknown id,
+    /// or when the event had nothing to do and ended on the spot.
+    /// </summary>
+    public sealed class ChaosEventRequest
+    {
+        public string Id { get; }
+        public bool Accepted { get; set; }
+
+        public ChaosEventRequest(string id)
+        {
+            Id = id;
+        }
+    }
+
+    /// <summary>
     /// Lightweight static event bus. Systems publish here and subscribe here; none of them
     /// hold references to each other (see CLAUDE.md architecture rules).
     /// </summary>
@@ -281,6 +299,8 @@ namespace BuffetSim.Core
         public static event Action<MoneyChange> MoneyChanged;
         public static event Action<LedgerSnapshot> LedgerUpdated;
         public static event Action<CustomerReceipt> CustomerPaid;
+        /// <summary>What the ledger actually put in the till for a bill, after comps, boosts and forgiveness (0 when nothing was): name, amount, where.</summary>
+        public static event Action<string, float, Vector3> CustomerCharged;
         public static event Action<string, Vector3> CustomerLost;
         public static event Action<PurchaseRequest> PurchaseRequested;
         public static event Action<TheftRequest> TheftRequested;
@@ -323,6 +343,12 @@ namespace BuffetSim.Core
 
         // Player
         public static event Action<PlayerEffect> PlayerEffectRequested;
+        /// <summary>One line saying what the player is carrying, for the HUD.</summary>
+        public static event Action<string> PlayerCarryChanged;
+        /// <summary>One line listing the apron pocket, for the HUD; empty when the pocket is.</summary>
+        public static event Action<string> PlayerPocketChanged;
+        /// <summary>One line listing the timed effects on the player, for the HUD; empty when there are none.</summary>
+        public static event Action<string> PlayerStatusChanged;
 
         // Kitchen and floor
         /// <summary>Cooked food went into the cooler: which food, how many units, where it was cooked.</summary>
@@ -363,8 +389,8 @@ namespace BuffetSim.Core
         public static event Action<ChaosEventInfo> ChaosEventStarted;
         /// <summary>The event, whether the player resolved it, a one-line outcome.</summary>
         public static event Action<ChaosEventInfo, bool, string> ChaosEventEnded;
-        /// <summary>Start the event with this id now, on top of whatever is running (fortunes, robberies, debug keys).</summary>
-        public static event Action<string> ChaosEventRequested;
+        /// <summary>Start the event with this id now, on top of whatever is running (fortunes, robberies, debug keys); the scheduler answers in the request.</summary>
+        public static event Action<ChaosEventRequest> ChaosEventRequested;
 
         // Presentation
         public static event Action<string> Notice;
@@ -378,6 +404,7 @@ namespace BuffetSim.Core
         public static void RaiseMoneyChanged(MoneyChange change) => MoneyChanged?.Invoke(change);
         public static void RaiseLedgerUpdated(LedgerSnapshot snapshot) => LedgerUpdated?.Invoke(snapshot);
         public static void RaiseCustomerPaid(CustomerReceipt receipt) => CustomerPaid?.Invoke(receipt);
+        public static void RaiseCustomerCharged(string customerName, float credited, Vector3 at) => CustomerCharged?.Invoke(customerName, credited, at);
         public static void RaiseCustomerLost(string customerName, Vector3 at) => CustomerLost?.Invoke(customerName, at);
         public static void RaisePurchaseRequested(PurchaseRequest request) => PurchaseRequested?.Invoke(request);
         public static void RaiseTheftRequested(TheftRequest request) => TheftRequested?.Invoke(request);
@@ -405,6 +432,9 @@ namespace BuffetSim.Core
         public static void RaiseCustomerFollowRequested(Transform target, float seconds) => CustomerFollowRequested?.Invoke(target, seconds);
 
         public static void RaisePlayerEffectRequested(PlayerEffect effect) => PlayerEffectRequested?.Invoke(effect);
+        public static void RaisePlayerCarryChanged(string line) => PlayerCarryChanged?.Invoke(line ?? string.Empty);
+        public static void RaisePlayerPocketChanged(string line) => PlayerPocketChanged?.Invoke(line ?? string.Empty);
+        public static void RaisePlayerStatusChanged(string line) => PlayerStatusChanged?.Invoke(line ?? string.Empty);
 
         public static void RaiseCookedFoodStored(FoodDefinition food, int units, Vector3 at) => CookedFoodStored?.Invoke(food, units, at);
         public static void RaiseCookingSpeedRequested(float multiplier, float seconds) => CookingSpeedRequested?.Invoke(multiplier, seconds);
@@ -429,7 +459,15 @@ namespace BuffetSim.Core
 
         public static void RaiseChaosEventStarted(ChaosEventInfo info) => ChaosEventStarted?.Invoke(info);
         public static void RaiseChaosEventEnded(ChaosEventInfo info, bool resolved, string outcome) => ChaosEventEnded?.Invoke(info, resolved, outcome ?? string.Empty);
-        public static void RaiseChaosEventRequested(string id) => ChaosEventRequested?.Invoke(id);
+        public static void RaiseChaosEventRequested(ChaosEventRequest request) => ChaosEventRequested?.Invoke(request);
+
+        /// <summary>Asks for the event with this id and says whether anything actually started.</summary>
+        public static bool RaiseChaosEventRequested(string id)
+        {
+            var request = new ChaosEventRequest(id);
+            ChaosEventRequested?.Invoke(request);
+            return request.Accepted;
+        }
 
         public static void RaisePromptChanged(string prompt) => PromptChanged?.Invoke(prompt ?? string.Empty);
         public static void RaiseLightingCueRequested(Color color, float seconds) => LightingCueRequested?.Invoke(color, seconds);
@@ -451,6 +489,7 @@ namespace BuffetSim.Core
             MoneyChanged = null;
             LedgerUpdated = null;
             CustomerPaid = null;
+            CustomerCharged = null;
             CustomerLost = null;
             PurchaseRequested = null;
             TheftRequested = null;
@@ -478,6 +517,9 @@ namespace BuffetSim.Core
             CustomerFollowRequested = null;
 
             PlayerEffectRequested = null;
+            PlayerCarryChanged = null;
+            PlayerPocketChanged = null;
+            PlayerStatusChanged = null;
 
             CookedFoodStored = null;
             CookingSpeedRequested = null;

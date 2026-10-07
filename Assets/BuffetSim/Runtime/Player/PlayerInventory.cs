@@ -68,12 +68,19 @@ namespace BuffetSim.Player
         /// <summary>The foods in the to-go box in packing order; <see cref="CountInToGoBox"/> has the units.</summary>
         public IReadOnlyList<FoodDefinition> ToGoFoods => _toGoOrder;
 
+        /// <summary>Fires on every change; the same change goes out on the bus as <see cref="GameEvents.PlayerCarryChanged"/> for the HUD.</summary>
         public event Action Changed;
+
+        private void Publish()
+        {
+            Changed?.Invoke();
+            GameEvents.RaisePlayerCarryChanged(Describe());
+        }
 
         public void Configure(int plates)
         {
             plateCapacity = Mathf.Max(1, plates);
-            Changed?.Invoke();
+            Publish();
         }
 
         /// <summary>Temporary carry limits from fortunes; zero or less clears an override. Already-held loads are not trimmed here.</summary>
@@ -81,7 +88,7 @@ namespace BuffetSim.Player
         {
             _plateCapacityOverride = plates > 0 ? plates : -1;
             _foodCapacityOverride = foodUnits > 0 ? foodUnits : -1;
-            Changed?.Invoke();
+            Publish();
         }
 
         public bool IsHolding(string itemId) => IsHoldingItem && HeldItemId == itemId;
@@ -94,7 +101,7 @@ namespace BuffetSim.Player
             HeldFood = food;
             HeldFoodUnits = units;
             HeldFoodRaw = raw;
-            Changed?.Invoke();
+            Publish();
             return true;
         }
 
@@ -109,7 +116,7 @@ namespace BuffetSim.Player
                 HeldFoodUnits = 0;
                 HeldFoodRaw = false;
             }
-            Changed?.Invoke();
+            Publish();
             return removed;
         }
 
@@ -120,7 +127,7 @@ namespace BuffetSim.Player
             if (HasNonPlateLoad) return 0;
             int added = Mathf.Clamp(count, 0, PlateCapacity - HeldPlates);
             HeldPlates += added;
-            if (added > 0) Changed?.Invoke();
+            if (added > 0) Publish();
             return added;
         }
 
@@ -128,7 +135,7 @@ namespace BuffetSim.Player
         {
             int removed = Mathf.Clamp(count, 0, HeldPlates);
             HeldPlates -= removed;
-            if (removed > 0) Changed?.Invoke();
+            if (removed > 0) Publish();
             return removed;
         }
 
@@ -142,7 +149,7 @@ namespace BuffetSim.Player
             HeldItemUses = Mathf.Max(1, uses);
             HeldItemBlocksSprint = blocksSprint;
             HeldItemFragile = fragile;
-            Changed?.Invoke();
+            Publish();
             return true;
         }
 
@@ -152,7 +159,7 @@ namespace BuffetSim.Player
             if (!IsHolding(itemId)) return false;
             HeldItemUses--;
             if (HeldItemUses <= 0) ClearItem();
-            else Changed?.Invoke();
+            else Publish();
             return true;
         }
 
@@ -164,7 +171,7 @@ namespace BuffetSim.Player
             HeldItemUses = 0;
             HeldItemBlocksSprint = false;
             HeldItemFragile = false;
-            Changed?.Invoke();
+            Publish();
         }
 
         // ----- To-go box -----
@@ -176,7 +183,7 @@ namespace BuffetSim.Player
             ToGoUnits = 0;
             _toGo.Clear();
             _toGoOrder.Clear();
-            Changed?.Invoke();
+            Publish();
             return true;
         }
 
@@ -195,7 +202,7 @@ namespace BuffetSim.Player
             if (current == 0) _toGoOrder.Add(food);
             _toGo[food] = current + 1;
             ToGoUnits++;
-            Changed?.Invoke();
+            Publish();
             return true;
         }
 
@@ -207,7 +214,7 @@ namespace BuffetSim.Player
             ToGoUnits = 0;
             _toGo.Clear();
             _toGoOrder.Clear();
-            Changed?.Invoke();
+            Publish();
         }
 
         // ----- Losing it all -----
@@ -228,7 +235,7 @@ namespace BuffetSim.Player
             ToGoUnits = 0;
             _toGo.Clear();
             _toGoOrder.Clear();
-            Changed?.Invoke();
+            Publish();
         }
 
         /// <summary>

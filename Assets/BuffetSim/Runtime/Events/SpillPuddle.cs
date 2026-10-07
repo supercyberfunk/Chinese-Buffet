@@ -25,8 +25,6 @@ namespace BuffetSim.Events
         private ChaosEventContext _ctx;
         private Transform _visual;
         private Vector3 _fullScale = Vector3.one;
-        private PlayerInventory _playerInventory;
-        private PlayerEffects _playerEffects;
         private int _pressesLeft = PressesToMop;
         private float _playerCooldown;
         private float _customerTimer;
@@ -69,10 +67,26 @@ namespace BuffetSim.Events
             _ctx = ctx;
             _visual = visual;
             if (visual != null) _fullScale = visual.localScale;
-            _playerInventory = ctx != null && ctx.Player != null ? ctx.Player.GetComponent<PlayerInventory>() : null;
-            _playerEffects = ctx != null && ctx.Player != null ? ctx.Player.GetComponent<PlayerEffects>() : null;
             // Stagger the customer checks so several puddles don't all scan on the same frame.
             _customerTimer = ctx != null ? (float)ctx.Rng.NextDouble() * CustomerCheckInterval : 0f;
+        }
+
+        private void OnEnable()
+        {
+            GameEvents.DayEnded += OnDayEnded;
+        }
+
+        private void OnDisable()
+        {
+            GameEvents.DayEnded -= OnDayEnded;
+        }
+
+        /// <summary>Whatever is still on the floor at close gets mopped by whoever locks up; no puddle outlives its day.</summary>
+        private void OnDayEnded(int day)
+        {
+            if (_mopped) return;
+            _mopped = true;
+            Destroy(gameObject);
         }
 
         public string GetPrompt(PlayerInventory inventory)
@@ -106,8 +120,7 @@ namespace BuffetSim.Events
 
             if (_playerCooldown > 0f)
                 _playerCooldown -= dt;
-            else if (_playerInventory != null && _ctx.Player != null && !_playerInventory.HandsFree
-                     && ChaosActors.HorizontalDistance(_ctx.Player.position, transform.position) <= SlipRadius)
+            else if (_ctx.Player != null && ChaosActors.HorizontalDistance(_ctx.Player.position, transform.position) <= SlipRadius)
                 SlipPlayer();
 
             _customerTimer -= dt;
@@ -121,13 +134,9 @@ namespace BuffetSim.Events
         private void SlipPlayer()
         {
             _playerCooldown = PlayerSlipCooldown;
-            // Effects decide whether you can slip at all (a fortune can keep you upright) and what breaks.
-            if (_playerEffects != null)
-            {
-                _playerEffects.TrySlip("Slipped on the spill");
-                return;
-            }
-            _playerInventory.SpillLoad(_ctx.Player.position, "Slipped on the spill");
+            // The player's own effects decide whether you can slip at all (a fortune can keep you upright),
+            // whether empty hands get away with it, and what breaks; the puddle only says where you are.
+            GameEvents.RaisePlayerEffectRequested(new PlayerEffect { Kind = PlayerEffectKind.Slip, Source = "Slipped on the spill" });
         }
 
         /// <summary>Each customer who walks through goes down once per puddle; the spill, not the customer, publishes the slip.</summary>
