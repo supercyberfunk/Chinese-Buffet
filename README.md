@@ -104,16 +104,19 @@ shader ships with the build).
 3. Watch the `!` above a tray: it means fewer than 5 units are left.
 4. Walk to the **storage cooler** in the kitchen. E takes a cooked tray if the pile has one; Q buys a raw
    box for $15 (money out). Carry the raw box to the cooker whose name is on it, cook it (see Controls),
-   take the cooked tray out when the light turns green, and press E on the matching buffet tray to fill
-   it to 20. No partial refills: a tray takes a whole batch.
+   take the cooked tray out when the light turns green, and press E on the matching buffet tray: it
+   pours what the tray has room for, up to 20, and the rest stays in your hands. (The notes say a tray
+   takes whole batches only; whether to enforce that is an open design question.)
 5. When a customer leaves they pay at the register (money in) and leave 2 to 5 dirty plates on
    the table. The table's light turns yellow; press E to pick up plates (4 at a time), carry them
-   to the **dishwasher** and press E to load it. A table with plates on it can't be reused.
+   to the **dishwasher** and press E to load it (a full machine runs itself first). A table with
+   plates on it can't be reused.
 6. The customer's bill is $35 minus $1.25 per unit you couldn't serve; a customer who got nothing
    at all leaves without paying. Customers who wait too long in line walk out.
 7. Watch for a red `!!` over a customer who just finished eating: they're about to run. Sprint, look
    at them and press E to tackle; walk over the coins to collect the bill.
 8. When the phone rings, answer it, pack the order in a to-go box and leave it on the pickup rack.
+   A box with none of the order in it is handed straight back.
 9. The top of the screen shows the day timer and the satisfaction value; an event banner appears
    when something starts and tells you the outcome when it ends. At 0:00 the doors close, stragglers
    finish, the lights go off and the receipt shows the day's take and your cut. Your cut goes in your
