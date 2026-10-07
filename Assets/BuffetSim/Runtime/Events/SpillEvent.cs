@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using BuffetSim.Bootstrap;
 using BuffetSim.Core;
 using UnityEngine;
 using UnityEngine.AI;
@@ -101,25 +100,7 @@ namespace BuffetSim.Events
 
         private SpillPuddle SpawnPuddle(Vector3 point, int index)
         {
-            var root = new GameObject($"Spill Puddle {index + 1}");
-            root.transform.SetParent(transform, false);
-            root.transform.position = new Vector3(point.x, ChaosActors.FloorHeightAt(point, point.y), point.z);
-            root.layer = 0;
-
-            // A flat disc, slightly squashed and turned so three of them don't look identical. No collider of its own.
-            float stretch = 0.85f + (float)Ctx.Rng.NextDouble() * 0.3f;
-            GameObject disc = PrimitiveFactory.Visual("Sauce", PrimitiveType.Cylinder, root.transform, new Vector3(0f, 0.01f, 0f), new Vector3(1.1f * stretch, 0.01f, 1.1f / stretch), MaterialLibrary.Get(SauceColor));
-            disc.transform.localRotation = Quaternion.Euler(0f, (float)Ctx.Rng.NextDouble() * 360f, 0f);
-
-            // Trigger box on the root so the player's interaction ray can find the puddle without blocking anyone.
-            BoxCollider trigger = root.AddComponent<BoxCollider>();
-            trigger.isTrigger = true;
-            trigger.center = new Vector3(0f, 0.15f, 0f);
-            trigger.size = new Vector3(1.1f, 0.3f, 1.1f);
-
-            SpillPuddle puddle = root.AddComponent<SpillPuddle>();
-            puddle.Initialize(this, Ctx, disc.transform);
-            return puddle;
+            return SpillPuddle.Spawn($"Spill Puddle {index + 1}", transform, Ctx, point, SauceColor, 1.1f, this);
         }
 
         /// <summary>Called by a puddle when it is destroyed (mopped or cleaned up).</summary>

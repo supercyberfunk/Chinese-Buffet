@@ -1,3 +1,6 @@
+using System;
+using System.Collections.Generic;
+using BuffetSim.Customers;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -18,6 +21,31 @@ namespace BuffetSim.Events
             float x = Mathf.Lerp(bounds.min.x, bounds.max.x, (float)rng.NextDouble());
             float z = Mathf.Lerp(bounds.min.z, bounds.max.z, (float)rng.NextDouble());
             return new Vector3(x, bounds.center.y, z);
+        }
+
+        /// <summary>A random customer in the building passing <paramref name="filter"/>, or null.</summary>
+        public static CustomerAgent PickCustomer(ChaosEventContext ctx, Func<CustomerAgent, bool> filter)
+        {
+            IReadOnlyList<CustomerAgent> all = ctx.GetCustomersInStore();
+            var candidates = new List<CustomerAgent>();
+            for (int i = 0; i < all.Count; i++)
+            {
+                CustomerAgent customer = all[i];
+                if (customer == null) continue;
+                if (filter == null || filter(customer)) candidates.Add(customer);
+            }
+            return candidates.Count > 0 ? candidates[ctx.Rng.Next(candidates.Count)] : null;
+        }
+
+        /// <summary>A seated customer who still owes money (most events want one of these), or null.</summary>
+        public static CustomerAgent PickSeatedCustomer(ChaosEventContext ctx)
+        {
+            return PickCustomer(ctx, c => c.IsSeated && !c.IsPaid && !c.IsHeld && !c.IsKnockedOut);
+        }
+
+        public static string Pick(System.Random rng, params string[] lines)
+        {
+            return lines == null || lines.Length == 0 ? string.Empty : lines[rng.Next(lines.Length)];
         }
 
         public static float HorizontalDistance(Vector3 a, Vector3 b)

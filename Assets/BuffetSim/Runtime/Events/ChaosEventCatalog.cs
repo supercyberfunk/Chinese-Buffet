@@ -36,6 +36,14 @@ namespace BuffetSim.Events
                 RatSummonerEvent.CreateDefault(),
                 SpillEvent.CreateDefault(),
                 LeprechaunEvent.CreateDefault(),
+                PitcherBoyEvent.CreateDefault(),
+                WindowRockEvent.CreateDefault(),
+                ClownDrainEvent.CreateDefault(),
+                CigaretteManEvent.CreateDefault(),
+                MongoliansEvent.CreateDefault(),
+                RedditModeratorEvent.CreateDefault(),
+                BoothLampEvent.CreateDefault(),
+                CeilingTileEvent.CreateDefault(),
                 RobberyEvent.CreateDefault(),
             };
             return catalog;

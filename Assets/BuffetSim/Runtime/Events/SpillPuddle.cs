@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using BuffetSim.Bootstrap;
 using BuffetSim.Core;
 using BuffetSim.Customers;
 using BuffetSim.Interaction;
@@ -33,6 +34,34 @@ namespace BuffetSim.Events
 
         public int PressesLeft => _pressesLeft;
         public bool IsMopped => _mopped;
+
+        /// <summary>
+        /// A puddle of <paramref name="color"/> about <paramref name="diameter"/> metres across on the
+        /// floor at <paramref name="point"/>: a flat disc, slightly squashed and turned so no two look
+        /// the same, with a trigger box the player's interaction ray can find. <paramref name="owner"/>
+        /// (the spill event) is told when it is gone; other events pass null.
+        /// </summary>
+        public static SpillPuddle Spawn(string name, Transform parent, ChaosEventContext ctx, Vector3 point, Color color, float diameter, SpillRunner owner)
+        {
+            var root = new GameObject(name);
+            if (parent != null) root.transform.SetParent(parent, false);
+            root.transform.position = new Vector3(point.x, ChaosActors.FloorHeightAt(point, point.y), point.z);
+            root.layer = 0;
+
+            System.Random rng = ctx != null ? ctx.Rng : new System.Random();
+            float stretch = 0.85f + (float)rng.NextDouble() * 0.3f;
+            GameObject disc = PrimitiveFactory.Visual("Sauce", PrimitiveType.Cylinder, root.transform, new Vector3(0f, 0.01f, 0f), new Vector3(diameter * stretch, 0.01f, diameter / stretch), MaterialLibrary.Get(color));
+            disc.transform.localRotation = Quaternion.Euler(0f, (float)rng.NextDouble() * 360f, 0f);
+
+            BoxCollider trigger = root.AddComponent<BoxCollider>();
+            trigger.isTrigger = true;
+            trigger.center = new Vector3(0f, 0.15f, 0f);
+            trigger.size = new Vector3(diameter, 0.3f, diameter);
+
+            SpillPuddle puddle = root.AddComponent<SpillPuddle>();
+            puddle.Initialize(owner, ctx, disc.transform);
+            return puddle;
+        }
 
         public void Initialize(SpillRunner owner, ChaosEventContext ctx, Transform visual)
         {
