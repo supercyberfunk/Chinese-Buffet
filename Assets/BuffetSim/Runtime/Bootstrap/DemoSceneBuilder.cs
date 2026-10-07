@@ -107,7 +107,12 @@ namespace BuffetSim.Bootstrap
             PropLibrary.Clear();
 
             if (economyConfig == null) economyConfig = EconomyConfig.CreateDefault();
-            if (foodCatalog == null) foodCatalog = FoodCatalog.CreateDefault();
+            if (foodCatalog == null || foodCatalog.Unlocked.Count == 0)
+            {
+                // An assigned catalog whose entries were all deleted or cleared would leave the line and the cooler empty.
+                if (foodCatalog != null) Debug.LogWarning($"[Buffet] FoodCatalog '{foodCatalog.name}' has no foods; using the runtime default catalog.", this);
+                foodCatalog = FoodCatalog.CreateDefault();
+            }
             _font = PrimitiveFactory.DefaultFont();
             _rng = randomSeed != 0 ? new System.Random(randomSeed) : new System.Random();
 
@@ -362,7 +367,8 @@ namespace BuffetSim.Bootstrap
             go.transform.position = FountainPosition;
             Material stone = MaterialLibrary.Get(new Color(0.55f, 0.55f, 0.5f));
             PrimitiveFactory.Solid("Basin", PrimitiveType.Cylinder, go.transform, new Vector3(0f, 0.25f, 0f), new Vector3(2.2f, 0.25f, 2.2f), stone);
-            GameObject water = PrimitiveFactory.Visual("Water", PrimitiveType.Cylinder, go.transform, new Vector3(0f, 0.46f, 0f), new Vector3(1.9f, 0.02f, 1.9f), MaterialLibrary.Get(new Color(0.25f, 0.55f, 0.7f)));
+            // The water sits on the stone (the basin cylinder is solid, y 0..0.5); Fountain stacks the quarters on the water's height.
+            GameObject water = PrimitiveFactory.Visual("Water", PrimitiveType.Cylinder, go.transform, new Vector3(0f, 0.52f, 0f), new Vector3(1.9f, 0.02f, 1.9f), MaterialLibrary.Get(new Color(0.25f, 0.55f, 0.7f)));
             PrimitiveFactory.Visual("Column", PrimitiveType.Cylinder, go.transform, new Vector3(0f, 0.8f, 0f), new Vector3(0.3f, 0.4f, 0.3f), stone);
             PrimitiveFactory.Visual("Upper Bowl", PrimitiveType.Cylinder, go.transform, new Vector3(0f, 1.2f, 0f), new Vector3(0.9f, 0.06f, 0.9f), stone);
             PrimitiveFactory.Visual("Spout", PrimitiveType.Sphere, go.transform, new Vector3(0f, 1.35f, 0f), Vector3.one * 0.2f, MaterialLibrary.Get(new Color(0.3f, 0.6f, 0.75f)));
@@ -417,7 +423,8 @@ namespace BuffetSim.Bootstrap
             go.transform.position = position;
             PrimitiveFactory.Solid("Shelf", PrimitiveType.Cube, go.transform, new Vector3(0f, 0.5f, 0f), new Vector3(1.4f, 1f, 0.5f), _wood);
             PrimitiveFactory.Solid("Upper Shelf", PrimitiveType.Cube, go.transform, new Vector3(0f, 1.5f, 0f), new Vector3(1.4f, 0.06f, 0.5f), _wood);
-            PrimitiveFactory.Visual("Back", PrimitiveType.Cube, go.transform, new Vector3(0f, 1.25f, 0.22f), new Vector3(1.4f, 0.5f, 0.04f), _wood);
+            // The back panel goes on the wall side (-z) so it never hides the racked box from the room.
+            PrimitiveFactory.Visual("Back", PrimitiveType.Cube, go.transform, new Vector3(0f, 1.25f, -0.22f), new Vector3(1.4f, 0.5f, 0.04f), _wood);
             var spot = new GameObject("Box Spot").transform;
             spot.SetParent(go.transform, false);
             spot.localPosition = new Vector3(0f, 1.0f, 0f);
@@ -433,6 +440,7 @@ namespace BuffetSim.Bootstrap
 
             int trayCount = Mathf.Max(1, foodCatalog.Unlocked.Count);
             float counterLength = trayCount * BuffetSlotSpacing + 0.5f;
+            WarnIfTooLong("buffet counter", counterLength);
             bool useStationModel = PropLibrary.IsAvailable(StationModel);
             if (!useStationModel)
                 PrimitiveFactory.Solid("Counter", PrimitiveType.Cube, line, new Vector3(0f, CounterHeight * 0.5f, BuffetZ), new Vector3(counterLength, CounterHeight, 1.2f), _steel);
@@ -554,6 +562,7 @@ namespace BuffetSim.Bootstrap
 
             int boxCount = Mathf.Max(1, foodCatalog.Unlocked.Count);
             float shelfLength = boxCount * BuffetSlotSpacing + 0.5f;
+            WarnIfTooLong("cooler shelf", shelfLength);
             const float shelfZ = 11.5f;
             PrimitiveFactory.Solid("Cooler Shelf", PrimitiveType.Cube, kitchen, new Vector3(0f, 0.5f, shelfZ), new Vector3(shelfLength, 1f, 1f), _steel);
             string coolerSign = "STORAGE COOLER\n$" + economyConfig.WholesaleBoxCost.ToString("0") + " per box of " + economyConfig.UnitsPerBox
@@ -590,7 +599,15 @@ namespace BuffetSim.Bootstrap
             BuildTrashCan(kitchen, new Vector3(-12.5f, 0f, 9.5f));
             BuildTrashCan(level, new Vector3(13f, 0f, -2.5f));
             BuildMaintenanceShelf(kitchen);
-            BuildCookers(kitchen);
+            BuildCookers(kitchen, shelfLength * 0.5f);
+        }
+
+        /// <summary>The counter and the cooler shelf grow with the catalog; past the side walls there is nothing to do but unlock fewer foods.</summary>
+        private static void WarnIfTooLong(string what, float length)
+        {
+            float limit = SideWallX * 2f - 1f;
+            if (length > limit)
+                Debug.LogWarning($"[Buffet] The {what} is {length:0.0} m long but the room only fits {limit:0.0} m; put fewer foods in the FoodCatalog asset.");
         }
 
         /// <summary>Lightbulbs, duct tape, the wrench and a glass pane on a shelf against the kitchen's left wall.</summary>
@@ -601,13 +618,14 @@ namespace BuffetSim.Bootstrap
             PrimitiveFactory.Solid("Maintenance Shelf", PrimitiveType.Cube, kitchen, new Vector3(shelfX, 0.5f, shelfZ), new Vector3(0.8f, 1f, 3.8f), _darkSteel);
             AddSign(kitchen, new Vector3(shelfX + 0.3f, 2.3f, shelfZ), "MAINTENANCE", 0.2f, new Color(1f, 0.85f, 0.4f));
 
-            BuildSupply(kitchen, new Vector3(shelfX, 1f, shelfZ - 1.4f), "Lightbulbs", CarryItems.Lightbulb, "a lightbulb", 0f, 1, economyConfig.LightbulbsPerDay, false, true,
+            // Display names are bare nouns: SupplyItem, TrashCan and PlayerInventory add their own article.
+            BuildSupply(kitchen, new Vector3(shelfX, 1f, shelfZ - 1.4f), "Lightbulbs", CarryItems.Lightbulb, "lightbulb", 0f, 1, economyConfig.LightbulbsPerDay, false, true,
                 PrimitiveType.Sphere, new Vector3(0.25f, 0.25f, 0.25f), new Color(1f, 0.97f, 0.75f));
             BuildSupply(kitchen, new Vector3(shelfX, 1f, shelfZ - 0.45f), "Duct Tape", CarryItems.DuctTape, "duct tape", economyConfig.DuctTapeCost, economyConfig.DuctTapeStrips, -1, false, false,
                 PrimitiveType.Cylinder, new Vector3(0.28f, 0.06f, 0.28f), new Color(0.6f, 0.62f, 0.65f));
-            BuildSupply(kitchen, new Vector3(shelfX, 1f, shelfZ + 0.5f), "Wrench", CarryItems.Wrench, "the wrench", 0f, 1, -1, false, false,
+            BuildSupply(kitchen, new Vector3(shelfX, 1f, shelfZ + 0.5f), "Wrench", CarryItems.Wrench, "wrench", 0f, 1, -1, false, false,
                 PrimitiveType.Cube, new Vector3(0.08f, 0.05f, 0.5f), new Color(0.5f, 0.52f, 0.55f));
-            BuildSupply(kitchen, new Vector3(shelfX, 1f, shelfZ + 1.45f), "Glass Pane", CarryItems.GlassPane, "a glass pane", economyConfig.GlassPaneCost, 1, -1, true, true,
+            BuildSupply(kitchen, new Vector3(shelfX, 1f, shelfZ + 1.45f), "Glass Pane", CarryItems.GlassPane, "glass pane", economyConfig.GlassPaneCost, 1, -1, true, true,
                 PrimitiveType.Cube, new Vector3(0.04f, 1.1f, 0.7f), new Color(0.7f, 0.85f, 0.95f));
         }
 
@@ -629,13 +647,19 @@ namespace BuffetSim.Bootstrap
         }
 
         /// <summary>The four cookers along the back wall: the Meshy fryer and stove where the models exist, primitives otherwise.</summary>
-        private void BuildCookers(Transform kitchen)
+        private void BuildCookers(Transform kitchen, float coolerShelfHalfLength)
         {
             const float cookerZ = 11.5f;
-            BuildCooker(kitchen, CookerKind.Fryer, "Deep Fryer", new Vector3(-11f, 0f, cookerZ));
-            BuildCooker(kitchen, CookerKind.Steamer, "Steamer", new Vector3(-9.2f, 0f, cookerZ));
-            BuildCooker(kitchen, CookerKind.RiceCooker, "Rice Cooker", new Vector3(9.2f, 0f, cookerZ));
-            BuildCooker(kitchen, CookerKind.Wok, "Wok", new Vector3(11f, 0f, cookerZ));
+            // The cooler shelf shares this z and grows with the catalog from x 0 outward. The pairs sit at their
+            // usual spots for the six default foods and only slide outward when a longer shelf would run into them.
+            float inner = Mathf.Max(9.2f, coolerShelfHalfLength + 1.45f);
+            float outer = Mathf.Max(11f, coolerShelfHalfLength + 3.25f);
+            if (outer + 0.65f > SideWallX - WallThickness * 0.5f)
+                Debug.LogWarning($"[Buffet] The cooler shelf pushes the outer cookers to x {outer:0.0}, into the side walls; put fewer foods in the FoodCatalog asset.");
+            BuildCooker(kitchen, CookerKind.Fryer, "Deep Fryer", new Vector3(-outer, 0f, cookerZ));
+            BuildCooker(kitchen, CookerKind.Steamer, "Steamer", new Vector3(-inner, 0f, cookerZ));
+            BuildCooker(kitchen, CookerKind.RiceCooker, "Rice Cooker", new Vector3(inner, 0f, cookerZ));
+            BuildCooker(kitchen, CookerKind.Wok, "Wok", new Vector3(outer, 0f, cookerZ));
         }
 
         private void BuildCooker(Transform kitchen, CookerKind kind, string cookerName, Vector3 position)
@@ -684,7 +708,12 @@ namespace BuffetSim.Bootstrap
                     foodVisual = PrimitiveFactory.Visual("Food", PrimitiveType.Cube, rig, new Vector3(0f, 0.02f, 0f), new Vector3(0.55f, foodHeight, 0.42f), _steel).transform;
                     basket = rig;
                     basketDrop = 0.22f;
-                    indicator = PrimitiveFactory.Visual("Light", PrimitiveType.Sphere, root, new Vector3(0.35f, top - 0.15f, -0.46f), Vector3.one * 0.1f, lightMat).GetComponent<Renderer>();
+                    // On the model the light sits just in front of its front face (the root is at `position`, unrotated),
+                    // the way the stove knobs hang off the stove's bounds; the primitive body is 0.9 deep.
+                    Vector3 lightPosition = body != null
+                        ? new Vector3(Mathf.Min(0.35f, body.Width * 0.35f), top - 0.15f, body.WorldBounds.min.z - position.z - 0.06f)
+                        : new Vector3(0.35f, top - 0.15f, -0.46f);
+                    indicator = PrimitiveFactory.Visual("Light", PrimitiveType.Sphere, root, lightPosition, Vector3.one * 0.1f, lightMat).GetComponent<Renderer>();
                     break;
                 }
 

@@ -19,6 +19,28 @@ namespace BuffetSim.Food
             unlockedFoods = new List<FoodDefinition>(foods);
         }
 
+        /// <summary>
+        /// Runs when the asset loads (not on every Inspector edit, so a slot added with + can still be
+        /// filled in): a deleted FoodDefinition asset leaves a null the scene builder would trip over.
+        /// </summary>
+        private void OnEnable()
+        {
+            RemoveMissingFoods();
+        }
+
+        /// <summary>Drops null entries and says so.</summary>
+        private void RemoveMissingFoods()
+        {
+            if (unlockedFoods == null)
+            {
+                unlockedFoods = new List<FoodDefinition>();
+                return;
+            }
+            int removed = unlockedFoods.RemoveAll(food => food == null);
+            if (removed > 0)
+                Debug.LogWarning($"[Buffet] FoodCatalog '{name}' had {removed} empty food slot{(removed == 1 ? "" : "s")} (deleted or unassigned FoodDefinition); removed.", this);
+        }
+
         /// <summary>Six starter foods for the demo: three countable, three scooped, spread over the four cookers.</summary>
         public static FoodCatalog CreateDefault()
         {

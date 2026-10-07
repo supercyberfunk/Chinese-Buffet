@@ -25,6 +25,9 @@ namespace BuffetSim.Customers
 
         private static readonly System.Predicate<CustomerAgent> IsGone = customer => customer == null;
 
+        // Shirt hues come from a small palette so MaterialLibrary reuses the same few materials instead of one per customer.
+        private const int ShirtHues = 8;
+
         private readonly List<CustomerAgent> _customers = new List<CustomerAgent>();
 
         private CustomerContext _ctx;
@@ -135,7 +138,7 @@ namespace BuffetSim.Customers
             // Placeholder body: capsule + head. A GLB at StreamingAssets/Models/customer.glb replaces it.
             var placeholder = new GameObject("Placeholder");
             placeholder.transform.SetParent(root.transform, false);
-            Color shirt = Color.HSVToRGB((float)_ctx.Rng.NextDouble(), 0.55f, 0.9f);
+            Color shirt = Color.HSVToRGB(_ctx.Rng.Next(ShirtHues) / (float)ShirtHues, 0.55f, 0.9f);
             GameObject body = PrimitiveFactory.Solid("Body", PrimitiveType.Capsule, placeholder.transform, new Vector3(0f, 0.9f, 0f), new Vector3(0.7f, 0.9f, 0.7f), MaterialLibrary.Get(shirt));
             body.layer = LayerMask.NameToLayer("Ignore Raycast");
             PrimitiveFactory.Visual("Head", PrimitiveType.Sphere, placeholder.transform, new Vector3(0f, 1.95f, 0f), Vector3.one * 0.42f, MaterialLibrary.Get(new Color(0.95f, 0.8f, 0.65f)));

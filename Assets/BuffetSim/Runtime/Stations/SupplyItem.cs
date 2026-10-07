@@ -26,6 +26,12 @@ namespace BuffetSim.Stations
         public string ItemId => itemId;
         public int Stock => _stock;
 
+        // The display name is a bare noun ("lightbulb", "duct tape"); the prompts add the article. A fragile
+        // part is one of several you take ("a lightbulb", "a glass pane"); the rest are the shelf's own
+        // tools you borrow ("the wrench", "the duct tape").
+        private string Article => fragile ? "a" : "the";
+        private string Capitalized => string.IsNullOrEmpty(displayName) ? displayName : char.ToUpperInvariant(displayName[0]) + displayName.Substring(1);
+
         public void Configure(string id, string name, float price, int uses, int stockPerDay, bool heavy, bool breaks, TextMesh stockLabel)
         {
             itemId = id;
@@ -52,13 +58,13 @@ namespace BuffetSim.Stations
 
         public string GetPrompt(PlayerInventory inventory)
         {
-            if (inventory == null) return displayName;
+            if (inventory == null) return Capitalized;
             if (inventory.IsHolding(itemId)) return $"[E] Put the {displayName} back";
-            if (!inventory.HandsFree) return $"{displayName} - hands full";
-            if (dailyStock >= 0 && _stock <= 0) return $"{displayName} - none left today";
+            if (!inventory.HandsFree) return $"{Capitalized} - hands full";
+            if (dailyStock >= 0 && _stock <= 0) return $"{Capitalized} - none left today";
             string price = cost > 0f ? $" (${cost:0.00} from the till)" : string.Empty;
             string extra = blocksSprint ? ", two hands, no sprinting" : usesPerItem > 1 ? $", {usesPerItem} uses" : string.Empty;
-            return $"[E] Take {displayName}{price}{extra}";
+            return $"[E] Take {Article} {displayName}{price}{extra}";
         }
 
         public void Interact(PlayerInventory inventory)
@@ -85,13 +91,13 @@ namespace BuffetSim.Stations
             if (!inventory.HandsFree) return;
             if (dailyStock >= 0 && _stock <= 0)
             {
-                GameEvents.RaiseNotice($"No {displayName} left. The box refills overnight.");
+                GameEvents.RaiseNotice($"The {displayName} box is empty. It refills overnight.");
                 return;
             }
 
             if (cost > 0f)
             {
-                var request = new PurchaseRequest(cost, displayName, transform.position);
+                var request = new PurchaseRequest(cost, $"{Article} {displayName}", transform.position);
                 GameEvents.RaisePurchaseRequested(request);
                 if (!request.Approved) return;
             }
@@ -99,8 +105,8 @@ namespace BuffetSim.Stations
             if (!inventory.TryTakeItem(itemId, displayName, usesPerItem, blocksSprint, fragile)) return;
             if (dailyStock >= 0) _stock--;
             GameEvents.RaiseNotice(blocksSprint
-                ? $"Took the {displayName}. It's awkward. Walk, don't run."
-                : fragile ? $"Took a {displayName}. Don't drop it." : $"Took the {displayName}.");
+                ? $"Took {Article} {displayName}. It's awkward. Walk, don't run."
+                : fragile ? $"Took {Article} {displayName}. Don't drop it." : $"Took {Article} {displayName}.");
             RefreshLabel();
         }
 
@@ -115,7 +121,7 @@ namespace BuffetSim.Stations
             if (label == null) return;
             string stock = dailyStock >= 0 ? $"\n{_stock} left" : string.Empty;
             string price = cost > 0f ? $"\n${cost:0}" : string.Empty;
-            label.text = $"{displayName}{stock}{price}";
+            label.text = $"{Capitalized}{stock}{price}";
         }
     }
 }
