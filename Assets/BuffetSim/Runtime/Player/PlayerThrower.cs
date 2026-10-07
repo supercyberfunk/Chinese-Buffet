@@ -116,7 +116,8 @@ namespace BuffetSim.Player
             if (!_pocket.TryRemove(PocketItems.Rock)) return;
             Vector3 hand = HandPosition();
             IThrowTarget target = FindHomingTarget(ThrowableKind.Rock, RockRange);
-            Vector3 miss = StraightLanding(StraightRange);
+            // With nothing to home on, the rock goes where you are looking and stops at the first wall, not through it.
+            FindStraightTarget(ThrowableKind.Rock, StraightRange, out Vector3 miss);
 
             ThrownObject.Launch(PrimitiveType.Sphere, 0.18f, RockColor, hand, miss, target, ThrowSpeed, target != null ? 1.2f : 0.5f,
                 (thrown, hit, at) =>
@@ -134,7 +135,8 @@ namespace BuffetSim.Player
         private IThrowTarget FindHomingTarget(ThrowableKind kind, float range)
         {
             Transform cam = viewCamera.transform;
-            int count = Physics.OverlapSphereNonAlloc(transform.position, range, _overlap, Physics.AllLayers, QueryTriggerInteraction.Collide);
+            // Default layers only: every throw target's trigger lives there, and it keeps the Ignore Raycast bodies out of the buffer.
+            int count = Physics.OverlapSphereNonAlloc(transform.position, range, _overlap, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Collide);
             _seen.Clear();
             IThrowTarget best = null;
             float bestScore = float.NegativeInfinity;
@@ -181,8 +183,9 @@ namespace BuffetSim.Player
             switch (kind)
             {
                 case ThrowableKind.Dodgeball:
-                    // It bounces off and can be picked up again.
+                    // It bounces off and can be picked up again; a bounce into a wall or a table stays where it landed instead.
                     Vector3 bounce = at + new Vector3(Random.Range(-0.8f, 0.8f), 0f, Random.Range(-0.8f, 0.8f));
+                    if (Physics.CheckSphere(bounce + Vector3.up * 0.15f, 0.15f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)) bounce = at;
                     PocketPickup.Spawn(PocketItems.Dodgeball, displayName, 1, DodgeballMax, bounce, color, PrimitiveType.Sphere, size);
                     break;
                 case ThrowableKind.Cookie:

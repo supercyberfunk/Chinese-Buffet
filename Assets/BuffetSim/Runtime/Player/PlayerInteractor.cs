@@ -129,6 +129,9 @@ namespace BuffetSim.Player
                 IHoldInteractable done = _holdTarget;
                 CancelHold();
                 done.CompleteHold(inventory);
+                // Still holding, still looking, still something to do (the fountain): the next bar starts at once.
+                if (InputReader.InteractHeld() && ReferenceEquals(_current, done) && !IsDestroyed(done) && done.GetHoldSeconds(inventory) > 0f)
+                    StartHold(done);
                 return;
             }
 

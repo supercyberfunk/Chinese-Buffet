@@ -93,7 +93,8 @@ namespace BuffetSim.Events
             GameEvents.RaiseLightingCueRequested(new Color(0.5f, 1f, 0.6f), 4f);
             GameEvents.RaisePlayerEffectRequested(new PlayerEffect { Kind = PlayerEffectKind.Abduct, Seconds = seconds, Position = Ctx.DoorInside, Source = "aliens" });
             GameEvents.RaiseNotice($"You are going up. The customers watch, chewing. Back in about {Mathf.RoundToInt(seconds)} seconds, at the front door, with nothing in your hands.");
-            _leaveAt = Time.time + 4f;
+            // The saucer hovers for as long as it has you (the effect lasts at least four seconds), then lifts away.
+            _leaveAt = Time.time + Mathf.Max(4f, seconds);
         }
 
         public override void Abort()
