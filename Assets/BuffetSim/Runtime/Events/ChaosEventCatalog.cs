@@ -5,7 +5,7 @@ namespace BuffetSim.Events
 {
     /// <summary>
     /// The set of chaos events the scheduler can pick from. Make one as an asset and fill it with
-    /// event assets, or use <see cref="CreateDefault"/> for runtime instances of the built-in four.
+    /// event assets, or use <see cref="CreateDefault"/> for runtime instances of every built-in event.
     /// </summary>
     [CreateAssetMenu(menuName = "Buffet Sim/Chaos Event Catalog", fileName = "ChaosEventCatalog")]
     public sealed class ChaosEventCatalog : ScriptableObject
@@ -45,6 +45,20 @@ namespace BuffetSim.Events
                 BoothLampEvent.CreateDefault(),
                 CeilingTileEvent.CreateDefault(),
                 RobberyEvent.CreateDefault(),
+                AlienAbductionEvent.CreateDefault(),
+                HealthInspectorEvent.CreateDefault(),
+                TupperwareGuyEvent.CreateDefault(),
+                SpeakToManagerEvent.CreateDefault(),
+                DinosaurKidsEvent.CreateDefault(),
+                PipeBurstEvent.CreateDefault(),
+                ParadeDragonEvent.CreateDefault(),
+                MysteryMeatEvent.CreateDefault(),
+                // Fortune-only events (weight 0): the fortune teller asks for them by id.
+                CousinEvent.CreateDefault(),
+                CookieFactoryEvent.CreateDefault(),
+                LuckyEightEvent.CreateDefault(),
+                GrandmaEvent.CreateDefault(),
+                StrangerEvent.CreateDefault(),
             };
             return catalog;
         }

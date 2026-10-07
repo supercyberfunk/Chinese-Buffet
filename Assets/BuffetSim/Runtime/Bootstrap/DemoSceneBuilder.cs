@@ -253,7 +253,8 @@ namespace BuffetSim.Bootstrap
             desk.SetParent(level, false);
 
             PrimitiveFactory.Solid("Counter", PrimitiveType.Cube, desk, new Vector3(-3f, 0.5f, -6f), new Vector3(3.2f, 1f, 1f), _wood);
-            PrimitiveFactory.Visual("Cash Register", PrimitiveType.Cube, desk, new Vector3(-3f, 1.2f, -6f), new Vector3(0.6f, 0.4f, 0.5f), _darkSteel);
+            GameObject register = PrimitiveFactory.Solid("Cash Register", PrimitiveType.Cube, desk, new Vector3(-3f, 1.2f, -6f), new Vector3(0.6f, 0.4f, 0.5f), _darkSteel);
+            register.AddComponent<CashRegister>();
             AddSign(desk, new Vector3(-3f, 1.8f, -6f), "REGISTER", 0.22f, Color.white);
             BuildPhone(desk, new Vector3(-4.2f, 1f, -6f));
             BuildToGoBoxStack(desk, new Vector3(-1.8f, 1f, -6f));
