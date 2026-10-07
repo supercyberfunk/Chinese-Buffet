@@ -34,6 +34,8 @@ namespace BuffetSim.Gambling
         [SerializeField] private Renderer catBody;
         [SerializeField] private TextMesh label;
         [SerializeField] private Transform traySpot;
+        /// <summary>Payouts fan out through this many degrees in front of the machine, never into the wall behind it.</summary>
+        private const float PayoutArcDegrees = 150f;
         [SerializeField] private GameObject happyHourSign;
 
         private System.Random _rng = new System.Random();
@@ -173,7 +175,7 @@ namespace BuffetSim.Gambling
                 {
                     float payout = config != null ? config.SlotEggRollPayout : 5f;
                     SetReels(EggRollColor, EggRollColor, EggRollColor);
-                    CoinPickup.Burst(tray, payout, Mathf.Max(4, Mathf.RoundToInt(payout / 0.25f)), "egg roll x3 on the slot machine", null, true);
+                    CoinPickup.Burst(tray, payout, Mathf.Max(4, Mathf.RoundToInt(payout / 0.25f)), "egg roll x3 on the slot machine", RoomSide(tray), PayoutArcDegrees, null, true);
                     GameEvents.RaiseNotice($"Egg roll, egg roll, egg roll: ${payout:0.00} back, in quarters, on the floor.");
                     break;
                 }
@@ -181,7 +183,7 @@ namespace BuffetSim.Gambling
                 {
                     float payout = config != null ? config.SlotCatPayout : 15f;
                     SetReels(CatColor, CatColor, CatColor);
-                    CoinPickup.Burst(tray, payout, 24, "cat x3 on the slot machine", null, true);
+                    CoinPickup.Burst(tray, payout, 24, "cat x3 on the slot machine", RoomSide(tray), PayoutArcDegrees, null, true);
                     GameEvents.RaiseNotice($"Three cats. ${payout:0.00} in quarters sprays across the floor. The real cat waves at you specifically.");
                     break;
                 }
@@ -189,7 +191,7 @@ namespace BuffetSim.Gambling
                 {
                     float payout = config != null ? config.SlotDragonPayout : 50f;
                     SetReels(DragonColor, DragonColor, DragonColor);
-                    CoinPickup.Burst(tray, payout, 36, "dragon x3 on the slot machine", null, true);
+                    CoinPickup.Burst(tray, payout, 36, "dragon x3 on the slot machine", RoomSide(tray), PayoutArcDegrees, null, true);
                     GameEvents.RaiseNotice($"DRAGON DRAGON DRAGON. ${payout:0.00} in quarters. (audio cue: a two-second siren nobody installed)");
                     break;
                 }
@@ -197,7 +199,7 @@ namespace BuffetSim.Gambling
                 {
                     float payout = config != null ? config.SlotEightsPayout : 200f;
                     SetReels(EightColor, EightColor, EightColor);
-                    CoinPickup.Burst(tray, payout, 60, "8-8-8 on the slot machine", null, true);
+                    CoinPickup.Burst(tray, payout, 60, "8-8-8 on the slot machine", RoomSide(tray), PayoutArcDegrees, null, true);
                     GameEvents.RaiseLightingCueRequested(new Color(1f, 0.15f, 0.1f), 30f);
                     GameEvents.RaiseNotice($"8 8 8. ${payout:0.00}. The lights go red. Every customer in the building turns to look at you.");
                     break;
@@ -213,8 +215,18 @@ namespace BuffetSim.Gambling
                 GameEvents.RaiseNotice($"A fortune cookie dropped into the tray and went in your pocket ({_lastPocket.Count(PocketItems.Cookie)}/{limit}). R to crack it, or throw it at someone.");
                 return;
             }
-            PocketPickup.Spawn(PocketItems.Cookie, "fortune cookie", 1, limit, tray + new Vector3(0.3f, 0f, 0.3f), CookieColor, PrimitiveType.Sphere, 0.18f);
+            // On the floor in front of the cabinet, clear of its footprint, where the prompt can find it.
+            Vector3 onFloor = tray + RoomSide(tray) * 0.6f + new Vector3(0.2f, 0f, 0f);
+            PocketPickup.Spawn(PocketItems.Cookie, "fortune cookie", 1, limit, onFloor, CookieColor, PrimitiveType.Sphere, 0.18f);
             GameEvents.RaiseNotice("A fortune cookie dropped into the tray. Your pocket is full of them; it's on the floor.");
+        }
+
+        /// <summary>Flat direction from the cabinet to its tray: the side the room is on, whichever way the machine was built facing.</summary>
+        private Vector3 RoomSide(Vector3 tray)
+        {
+            Vector3 outward = tray - transform.position;
+            outward.y = 0f;
+            return outward.sqrMagnitude > 0.001f ? outward.normalized : -transform.forward;
         }
 
         private void OnJackpotUnlocked()
@@ -225,7 +237,7 @@ namespace BuffetSim.Gambling
             float spill = _cashBox;
             _cashBox = 0f;
             if (catBody != null) catBody.sharedMaterial = MaterialLibrary.Get(GoldColor);
-            CoinPickup.Burst(tray, spill, Mathf.Clamp(Mathf.RoundToInt(spill / 2f), 20, 120), "the slot machine's cash box", null, true);
+            CoinPickup.Burst(tray, spill, Mathf.Clamp(Mathf.RoundToInt(spill / 2f), 20, 120), "the slot machine's cash box", RoomSide(tray), PayoutArcDegrees, null, true);
             GameEvents.RaiseNotice($"The slot machine's lock popped. ${spill:0.00} in quarters, every dollar it ever took plus the leasing company's, is on the floor. The cat is gold now.");
             RefreshLabel();
         }

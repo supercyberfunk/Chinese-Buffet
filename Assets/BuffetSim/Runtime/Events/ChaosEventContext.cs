@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using BuffetSim.Buffet;
 using BuffetSim.Customers;
 using BuffetSim.Economy;
+using BuffetSim.Tables;
 using UnityEngine;
 
 namespace BuffetSim.Events
@@ -17,6 +18,7 @@ namespace BuffetSim.Events
         private static readonly CustomerAgent[] NoCustomers = new CustomerAgent[0];
         private static readonly IFoodSource[] NoSources = new IFoodSource[0];
         private static readonly Vector3[] NoPoints = new Vector3[0];
+        private static readonly DiningTable[] NoTables = new DiningTable[0];
 
         public EconomyConfig Config;
         public System.Random Rng = new System.Random();
@@ -33,6 +35,8 @@ namespace BuffetSim.Events
         public Func<IReadOnlyList<CustomerAgent>> CustomersInStore;
         /// <summary>Every tray on the buffet line (raided by Mongolians, torched by dragons).</summary>
         public Func<IReadOnlyList<IFoodSource>> FoodSources;
+        /// <summary>Every dining table (the cousin clears them); never scan the scene for them.</summary>
+        public Func<IReadOnlyList<DiningTable>> Tables;
         public Transform Player;
 
         // Landmarks the events are built around.
@@ -65,6 +69,12 @@ namespace BuffetSim.Events
         {
             IReadOnlyList<IFoodSource> list = FoodSources != null ? FoodSources() : null;
             return list ?? NoSources;
+        }
+
+        public IReadOnlyList<DiningTable> GetTables()
+        {
+            IReadOnlyList<DiningTable> list = Tables != null ? Tables() : null;
+            return list ?? NoTables;
         }
 
         public IReadOnlyList<Vector3> GetDrainPoints() => DrainPoints ?? NoPoints;

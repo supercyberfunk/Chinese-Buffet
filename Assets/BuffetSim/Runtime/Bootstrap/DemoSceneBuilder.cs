@@ -63,7 +63,8 @@ namespace BuffetSim.Bootstrap
 
         private static readonly Vector3 RegisterPoint = new Vector3(-3f, 0f, -7.3f);
         private static readonly Vector3 QueueStart = new Vector3(-1.3f, 0f, -7.6f);
-        private static readonly Vector3 QueueDirection = new Vector3(1f, 0f, -0.35f);
+        // The line runs along the counter, parallel to the front wall, so a long line never stands in the doorway.
+        private static readonly Vector3 QueueDirection = Vector3.right;
         private static readonly Vector3 SpawnPoint = new Vector3(5.5f, 0f, -12f);
         private static readonly Vector3 ExitPoint = new Vector3(2.5f, 0f, -12f);
         private static readonly Vector3 PlayerSpawn = new Vector3(0f, 0.1f, -4f);
@@ -283,6 +284,8 @@ namespace BuffetSim.Bootstrap
             var go = new GameObject("Slot Machine");
             go.transform.SetParent(level, false);
             go.transform.position = SlotMachinePosition;
+            // The parts below are laid out on local -z; turned around, the reels, lip and tray face into the room.
+            go.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
             Material cabinet = MaterialLibrary.Get(new Color(0.55f, 0.1f, 0.12f));
             Material gold = MaterialLibrary.Get(new Color(0.85f, 0.7f, 0.25f));
             PrimitiveFactory.Solid("Cabinet", PrimitiveType.Cube, go.transform, new Vector3(0f, 0.8f, 0f), new Vector3(0.8f, 1.6f, 0.6f), cabinet);
@@ -739,6 +742,12 @@ namespace BuffetSim.Bootstrap
 
             GameObject smoke = PrimitiveFactory.Visual("Smoke", PrimitiveType.Sphere, root, new Vector3(0f, top + 0.6f, 0f), Vector3.one * 0.4f, MaterialLibrary.Get(new Color(0.3f, 0.3f, 0.3f)));
             smoke.SetActive(false);
+
+            // One trigger over the whole cooker (body, wok, basket, lid) so the prompt shows wherever you look at it.
+            BoxCollider reach = go.AddComponent<BoxCollider>();
+            reach.isTrigger = true;
+            reach.center = new Vector3(0f, (top + 0.35f) * 0.5f, 0f);
+            reach.size = new Vector3(1.1f, top + 0.35f, 0.9f);
             TextMesh label = PrimitiveFactory.Label("Label", root, new Vector3(0f, top + 0.95f, 0f), cookerName, 0.16f, _font, Color.white);
             label.gameObject.AddComponent<Billboard>();
             if (foodVisual != null) foodVisual.gameObject.SetActive(false);
@@ -861,7 +870,7 @@ namespace BuffetSim.Bootstrap
             var hudGo = new GameObject("HUD");
             hudGo.transform.SetParent(transform, false);
             HudController hud = hudGo.AddComponent<HudController>();
-            hud.Initialize(_font, inventory, inventory.GetComponent<PlayerPocket>(), inventory.GetComponent<PlayerEffects>());
+            hud.Initialize(_font);
 
             var ledgerGo = new GameObject("Economy Ledger");
             ledgerGo.transform.SetParent(transform, false);
@@ -910,6 +919,7 @@ namespace BuffetSim.Bootstrap
                 Queue = _queue,
                 CustomersInStore = () => spawner.Customers,
                 FoodSources = () => _floor.Sources,
+                Tables = () => _floor.Tables,
                 Player = inventory.transform,
                 WindowPoint = new Vector3(WindowCenter.x, 0f, FrontWallZ + 0.6f),
                 WallHolePoint = new Vector3(WallHoleCenter.x + 0.9f, 0f, WallHoleCenter.z),

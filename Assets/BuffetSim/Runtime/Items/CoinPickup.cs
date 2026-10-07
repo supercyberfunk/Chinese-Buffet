@@ -47,15 +47,30 @@ namespace BuffetSim.Items
         /// </summary>
         public static void Burst(Vector3 origin, float totalAmount, int coinCount, string reason, Transform collector = null, bool toWallet = false)
         {
+            Burst(origin, totalAmount, coinCount, reason, Vector3.zero, 360f, collector, toWallet);
+        }
+
+        /// <summary>
+        /// A burst that only goes one way: <paramref name="arcDegrees"/> of fan centred on
+        /// <paramref name="forward"/> (flat), for things that stand against a wall. 360 is the full ring.
+        /// </summary>
+        public static void Burst(Vector3 origin, float totalAmount, int coinCount, string reason, Vector3 forward, float arcDegrees, Transform collector = null, bool toWallet = false)
+        {
             if (totalAmount <= 0f) return;
             coinCount = Mathf.Max(1, coinCount);
             if (collector == null && Camera.main != null) collector = Camera.main.transform;
 
+            forward.y = 0f;
+            float arc = Mathf.Clamp(arcDegrees, 10f, 360f);
+            float centre = forward.sqrMagnitude > 0.001f ? Quaternion.LookRotation(forward.normalized).eulerAngles.y : 0f;
+            float step = arc >= 360f ? 360f / coinCount : arc / Mathf.Max(1, coinCount - 1);
+            float first = arc >= 360f ? centre : centre - arc * 0.5f;
+
             float perCoin = totalAmount / coinCount;
             for (int i = 0; i < coinCount; i++)
             {
-                // Spread the burst evenly around the body so the pile reads as "it came out of them".
-                float angle = (360f / coinCount) * i + Random.Range(-18f, 18f);
+                // Spread the burst evenly so the pile reads as "it came out of them" (or out of the tray).
+                float angle = first + step * i + Random.Range(-18f, 18f);
                 float distance = Random.Range(0.8f, 2.4f);
                 Vector3 offset = Quaternion.Euler(0f, angle, 0f) * Vector3.forward * distance;
                 Spawn(origin + Vector3.up * 1.0f, origin + offset, perCoin, reason, collector, toWallet);
