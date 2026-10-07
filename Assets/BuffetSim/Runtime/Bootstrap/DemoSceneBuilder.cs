@@ -6,6 +6,7 @@ using BuffetSim.Debugging;
 using BuffetSim.Economy;
 using BuffetSim.Events;
 using BuffetSim.Food;
+using BuffetSim.Gambling;
 using BuffetSim.Models;
 using BuffetSim.Player;
 using BuffetSim.Stations;
@@ -31,6 +32,8 @@ namespace BuffetSim.Bootstrap
         [SerializeField] private FoodCatalog foodCatalog;
         [Tooltip("Optional: the chaos events that can fire; a runtime default with the four demo events is used when empty.")]
         [SerializeField] private ChaosEventCatalog chaosCatalog;
+        [Tooltip("Optional: the forty fortunes; a runtime default is used when empty.")]
+        [SerializeField] private FortuneCatalog fortuneCatalog;
         [Tooltip("Optional lit material used as the base for every placeholder colour; assign one so builds include the shader.")]
         [SerializeField] private Material baseMaterial;
         [Tooltip("0 = random every run.")]
@@ -68,6 +71,9 @@ namespace BuffetSim.Bootstrap
         private static readonly Vector3 WallHoleCenter = new Vector3(-SideWallX, 1f, -2.5f);
         private static readonly Vector3 RestroomDoor = new Vector3(-SideWallX, 1.05f, -7f);
         private static readonly Vector3 DishwasherPosition = new Vector3(12f, 0f, 9.5f);
+        private static readonly Vector3 SlotMachinePosition = new Vector3(-1f, 0f, -9.4f);
+        private static readonly Vector3 FortuneWallPosition = new Vector3(-SideWallX + 0.17f, 1.5f, -5.2f);
+        private static readonly Vector3 FountainPosition = new Vector3(-7.5f, 0f, -7.6f);
         private static readonly int[] DrainTables = { 1, 3, 5 };
 
         private static readonly Vector2[] TablePositions =
@@ -252,6 +258,9 @@ namespace BuffetSim.Bootstrap
             BuildPhone(desk, new Vector3(-4.2f, 1f, -6f));
             BuildToGoBoxStack(desk, new Vector3(-1.8f, 1f, -6f));
             BuildPickupRack(level, new Vector3(6.2f, 0f, FrontWallZ + 0.7f));
+            BuildSlotMachine(level);
+            BuildFortuneWall(level);
+            BuildFountain(level);
 
             var queueGo = new GameObject("Customer Queue");
             queueGo.transform.SetParent(desk, false);
@@ -265,6 +274,98 @@ namespace BuffetSim.Bootstrap
                 Vector3 slot = _queue.SlotPosition(i);
                 PrimitiveFactory.Visual($"Line Marker {i + 1}", PrimitiveType.Cube, desk, new Vector3(slot.x, 0.005f, slot.z), new Vector3(0.5f, 0.01f, 0.5f), marker);
             }
+        }
+
+        /// <summary>A pachislo cabinet by the front door with a lucky cat on top. Pulls come out of your own wallet.</summary>
+        private void BuildSlotMachine(Transform level)
+        {
+            var go = new GameObject("Slot Machine");
+            go.transform.SetParent(level, false);
+            go.transform.position = SlotMachinePosition;
+            Material cabinet = MaterialLibrary.Get(new Color(0.55f, 0.1f, 0.12f));
+            Material gold = MaterialLibrary.Get(new Color(0.85f, 0.7f, 0.25f));
+            PrimitiveFactory.Solid("Cabinet", PrimitiveType.Cube, go.transform, new Vector3(0f, 0.8f, 0f), new Vector3(0.8f, 1.6f, 0.6f), cabinet);
+            PrimitiveFactory.Visual("Trim", PrimitiveType.Cube, go.transform, new Vector3(0f, 1.62f, 0f), new Vector3(0.84f, 0.04f, 0.64f), gold);
+            PrimitiveFactory.Visual("Reel Window", PrimitiveType.Cube, go.transform, new Vector3(0f, 1.1f, -0.31f), new Vector3(0.66f, 0.3f, 0.02f), MaterialLibrary.Get(new Color(0.1f, 0.1f, 0.12f)));
+            var reels = new Renderer[3];
+            for (int i = 0; i < 3; i++)
+                reels[i] = PrimitiveFactory.Visual($"Reel {i + 1}", PrimitiveType.Cube, go.transform, new Vector3(-0.2f + i * 0.2f, 1.1f, -0.33f), new Vector3(0.16f, 0.22f, 0.02f), MaterialLibrary.Get(Color.white)).GetComponent<Renderer>();
+            PrimitiveFactory.Visual("Lever Arm", PrimitiveType.Cylinder, go.transform, new Vector3(0.5f, 1.25f, 0f), new Vector3(0.04f, 0.2f, 0.04f), _darkSteel);
+            PrimitiveFactory.Visual("Lever Knob", PrimitiveType.Sphere, go.transform, new Vector3(0.5f, 1.47f, 0f), Vector3.one * 0.1f, MaterialLibrary.Get(new Color(0.9f, 0.2f, 0.2f)));
+            GameObject happy = PrimitiveFactory.Visual("Happy Hour Plate", PrimitiveType.Cylinder, go.transform, new Vector3(0.5f, 1.05f, -0.05f), new Vector3(0.22f, 0.005f, 0.22f), MaterialLibrary.Get(new Color(0.98f, 0.98f, 0.95f)));
+            happy.transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+            TextMesh happyText = PrimitiveFactory.Label("Happy Hour", happy.transform, Vector3.zero, "HAPPY\nHOUR", 0.3f, _font, new Color(0.2f, 0.2f, 0.2f));
+            happyText.transform.localPosition = new Vector3(0f, -0.6f, 0f);
+            happyText.transform.localRotation = Quaternion.Euler(-90f, 0f, 0f);
+            happy.SetActive(false);
+            var tray = new GameObject("Tray").transform;
+            tray.SetParent(go.transform, false);
+            tray.localPosition = new Vector3(0f, 0.45f, -0.5f);
+            PrimitiveFactory.Visual("Tray Lip", PrimitiveType.Cube, go.transform, new Vector3(0f, 0.4f, -0.34f), new Vector3(0.6f, 0.08f, 0.1f), gold);
+
+            // The lucky cat: a body, a head, and a paw that waves around its shoulder.
+            var catRoot = new GameObject("Lucky Cat").transform;
+            catRoot.SetParent(go.transform, false);
+            catRoot.localPosition = new Vector3(0f, 1.64f, 0f);
+            Renderer catBody = PrimitiveFactory.Visual("Body", PrimitiveType.Capsule, catRoot, new Vector3(0f, 0.18f, 0f), new Vector3(0.24f, 0.18f, 0.22f), MaterialLibrary.Get(new Color(0.98f, 0.98f, 0.95f))).GetComponent<Renderer>();
+            PrimitiveFactory.Visual("Head", PrimitiveType.Sphere, catRoot, new Vector3(0f, 0.4f, 0f), Vector3.one * 0.2f, MaterialLibrary.Get(new Color(0.98f, 0.98f, 0.95f)));
+            PrimitiveFactory.Visual("Collar", PrimitiveType.Cylinder, catRoot, new Vector3(0f, 0.3f, 0f), new Vector3(0.18f, 0.015f, 0.18f), MaterialLibrary.Get(new Color(0.9f, 0.2f, 0.2f)));
+            var paw = new GameObject("Paw Pivot").transform;
+            paw.SetParent(catRoot, false);
+            paw.localPosition = new Vector3(0.13f, 0.3f, -0.05f);
+            PrimitiveFactory.Visual("Paw", PrimitiveType.Capsule, paw, new Vector3(0f, 0.09f, 0f), new Vector3(0.07f, 0.09f, 0.07f), MaterialLibrary.Get(new Color(0.98f, 0.98f, 0.95f)));
+
+            TextMesh label = PrimitiveFactory.Label("Label", go.transform, new Vector3(0f, 2.35f, 0f), "SLOT MACHINE", 0.16f, _font, new Color(1f, 0.85f, 0.4f));
+            label.gameObject.AddComponent<Billboard>();
+            var machine = go.AddComponent<SlotMachine>();
+            machine.Initialize(economyConfig, _rng, reels, paw, catBody, label, tray, happy);
+        }
+
+        /// <summary>A corkboard with forty pushpins on the left wall, between the hole and the restroom.</summary>
+        private void BuildFortuneWall(Transform level)
+        {
+            var go = new GameObject("Fortune Wall");
+            go.transform.SetParent(level, false);
+            go.transform.position = FortuneWallPosition;
+            PrimitiveFactory.Visual("Cork", PrimitiveType.Cube, go.transform, Vector3.zero, new Vector3(0.05f, 1.2f, 1.7f), MaterialLibrary.Get(new Color(0.6f, 0.45f, 0.25f)));
+            PrimitiveFactory.Visual("Frame", PrimitiveType.Cube, go.transform, new Vector3(-0.01f, 0f, 0f), new Vector3(0.04f, 1.3f, 1.8f), MaterialLibrary.Get(new Color(0.3f, 0.2f, 0.12f)));
+            var pins = new System.Collections.Generic.List<Renderer>(40);
+            Material pinMat = MaterialLibrary.Get(new Color(0.45f, 0.42f, 0.4f));
+            for (int row = 0; row < 5; row++)
+            {
+                for (int col = 0; col < 8; col++)
+                {
+                    var pin = PrimitiveFactory.Visual($"Pin {row * 8 + col + 1}", PrimitiveType.Sphere, go.transform,
+                        new Vector3(0.04f, 0.42f - row * 0.21f, -0.7f + col * 0.2f), Vector3.one * 0.06f, pinMat);
+                    pins.Add(pin.GetComponent<Renderer>());
+                }
+            }
+            BoxCollider trigger = go.AddComponent<BoxCollider>();
+            trigger.isTrigger = true;
+            trigger.size = new Vector3(0.6f, 1.4f, 1.9f);
+            TextMesh label = PrimitiveFactory.Label("Label", go.transform, new Vector3(0.3f, 0.95f, 0f), "WALL OF FORTUNE", 0.14f, _font, new Color(1f, 0.85f, 0.4f));
+            label.gameObject.AddComponent<Billboard>();
+            FortuneCatalog fortunes = fortuneCatalog != null ? fortuneCatalog : (fortuneCatalog = FortuneCatalog.CreateDefault());
+            var wall = go.AddComponent<FortuneWall>();
+            wall.Configure(fortunes.Count, pins, label);
+        }
+
+        /// <summary>The wishing fountain by the front window; it opens for a few seconds at close.</summary>
+        private void BuildFountain(Transform level)
+        {
+            var go = new GameObject("Fountain");
+            go.transform.SetParent(level, false);
+            go.transform.position = FountainPosition;
+            Material stone = MaterialLibrary.Get(new Color(0.55f, 0.55f, 0.5f));
+            PrimitiveFactory.Solid("Basin", PrimitiveType.Cylinder, go.transform, new Vector3(0f, 0.25f, 0f), new Vector3(2.2f, 0.25f, 2.2f), stone);
+            GameObject water = PrimitiveFactory.Visual("Water", PrimitiveType.Cylinder, go.transform, new Vector3(0f, 0.46f, 0f), new Vector3(1.9f, 0.02f, 1.9f), MaterialLibrary.Get(new Color(0.25f, 0.55f, 0.7f)));
+            PrimitiveFactory.Visual("Column", PrimitiveType.Cylinder, go.transform, new Vector3(0f, 0.8f, 0f), new Vector3(0.3f, 0.4f, 0.3f), stone);
+            PrimitiveFactory.Visual("Upper Bowl", PrimitiveType.Cylinder, go.transform, new Vector3(0f, 1.2f, 0f), new Vector3(0.9f, 0.06f, 0.9f), stone);
+            PrimitiveFactory.Visual("Spout", PrimitiveType.Sphere, go.transform, new Vector3(0f, 1.35f, 0f), Vector3.one * 0.2f, MaterialLibrary.Get(new Color(0.3f, 0.6f, 0.75f)));
+            TextMesh label = PrimitiveFactory.Label("Label", go.transform, new Vector3(0f, 1.9f, 0f), "WISHING\nFOUNTAIN", 0.14f, _font, new Color(0.7f, 0.9f, 1f));
+            label.gameObject.AddComponent<Billboard>();
+            var fountain = go.AddComponent<Fountain>();
+            fountain.Initialize(economyConfig, _rng, water.transform, 0.9f, label);
         }
 
         /// <summary>The wall phone on the counter: it rings, you answer, the order is in your head. It owns the phone-order logic.</summary>
@@ -829,6 +930,11 @@ namespace BuffetSim.Bootstrap
             var robberyGo = new GameObject("Robbery Counter");
             robberyGo.transform.SetParent(transform, false);
             robberyGo.AddComponent<RobberyScheduler>().Initialize(economyConfig, _rng);
+
+            // Fortunes: the teller applies a cracked cookie's effect through the bus; the wall and the machine listen.
+            var tellerGo = new GameObject("Fortune Teller");
+            tellerGo.transform.SetParent(transform, false);
+            tellerGo.AddComponent<FortuneTeller>().Initialize(fortuneCatalog != null ? fortuneCatalog : FortuneCatalog.CreateDefault(), economyConfig, _rng, inventory.transform);
 
             var debugGo = new GameObject("Debug Tools");
             debugGo.transform.SetParent(transform, false);

@@ -265,6 +265,7 @@ namespace BuffetSim.Core
     /// <summary>A cracked fortune cookie: the slip and what it did.</summary>
     public struct FortuneReveal
     {
+        public int Id;
         public string Text;
         public FortuneKind Kind;
         public string EffectSummary;

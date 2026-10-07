@@ -60,6 +60,7 @@ namespace BuffetSim.UI
         private Color _satisfactionFlashColor = Color.white;
         private string _satisfactionBase = "Satisfaction --";
         private Text _ticketText;
+        private Text _fortuneText;
         private bool _phoneRinging;
         private bool _hasOrder;
         private ToGoOrderInfo _order;
@@ -98,6 +99,8 @@ namespace BuffetSim.UI
             GameEvents.ToGoOrderPlaced += OnToGoOrderPlaced;
             GameEvents.ToGoOrderTicked += OnToGoOrderTicked;
             GameEvents.ToGoOrderEnded += OnToGoOrderEnded;
+            GameEvents.FortuneRevealed += OnFortuneRevealed;
+            GameEvents.FortuneWallChanged += OnFortuneWallChanged;
         }
 
         private void OnDisable()
@@ -119,6 +122,8 @@ namespace BuffetSim.UI
             GameEvents.ToGoOrderPlaced -= OnToGoOrderPlaced;
             GameEvents.ToGoOrderTicked -= OnToGoOrderTicked;
             GameEvents.ToGoOrderEnded -= OnToGoOrderEnded;
+            GameEvents.FortuneRevealed -= OnFortuneRevealed;
+            GameEvents.FortuneWallChanged -= OnFortuneWallChanged;
             if (_inventory != null) _inventory.Changed -= RefreshCarry;
             if (_pocket != null) _pocket.Changed -= RefreshPocket;
         }
@@ -210,6 +215,9 @@ namespace BuffetSim.UI
             help.color = new Color(1f, 1f, 1f, 0.8f);
             _ticketText = MakeText(root, "Phone Ticket", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -250f), new Vector2(640f, 260f), 22, TextAnchor.UpperRight, FontStyle.Normal);
             _ticketText.text = string.Empty;
+            _fortuneText = MakeText(root, "Fortunes", new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -290f), new Vector2(1000f, 34f), 20, TextAnchor.UpperLeft, FontStyle.Normal);
+            _fortuneText.text = string.Empty;
+            _fortuneText.color = DimColor;
             Text crosshair = MakeText(root, "Crosshair", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(40f, 40f), 28, TextAnchor.MiddleCenter, FontStyle.Normal);
             crosshair.text = "+";
             crosshair.color = new Color(1f, 1f, 1f, 0.7f);
@@ -476,6 +484,33 @@ namespace BuffetSim.UI
                 Until = Time.time + EventOutcomeSeconds,
             });
             RefreshEventBanner();
+        }
+
+        // ----- Fortunes -----
+
+        private void OnFortuneRevealed(FortuneReveal reveal)
+        {
+            Color color = reveal.Kind == FortuneKind.Positive ? GainColor : reveal.Kind == FortuneKind.Detrimental ? LossColor : WarmColor;
+            _outcomes.Add(new Outcome
+            {
+                Text = $"<size=34>\"{reveal.Text}\"</size>\n{reveal.EffectSummary}",
+                Color = color,
+                Until = Time.time + 6f,
+            });
+            RefreshEventBanner();
+        }
+
+        private void OnFortuneWallChanged(int pinned, int total, int unpinned)
+        {
+            if (_fortuneText == null) return;
+            if (pinned == 0 && unpinned == 0)
+            {
+                _fortuneText.text = string.Empty;
+                return;
+            }
+            _fortuneText.text = unpinned > 0
+                ? $"Wall of fortune: {pinned}/{total} pinned, {unpinned} slip{(unpinned == 1 ? "" : "s")} in your apron (pin them on the board by the restroom)"
+                : $"Wall of fortune: {pinned}/{total} pinned";
         }
 
         // ----- Phone orders -----

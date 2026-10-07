@@ -172,6 +172,8 @@ namespace BuffetSim.Economy
         [Header("Slot machine (chance per pull; whatever is left over pays nothing)")]
         [Tooltip("Paid from the player's own wallet, never the till.")]
         [SerializeField] private float slotPullCost = 5f;
+        [Tooltip("What a pull costs from 3 to 5 PM, when a paper plate reading HAPPY HOUR hangs on the lever.")]
+        [SerializeField] private float slotHappyHourCost = 3f;
         [SerializeField] private float slotSpinSeconds = 3f;
         [Range(0f, 1f)] [SerializeField] private float slotCookieChance = 0.30f;
         [Range(0f, 1f)] [SerializeField] private float slotEggRollChance = 0.10f;
@@ -305,6 +307,7 @@ namespace BuffetSim.Economy
         public float PhoneExpiredReputation => phoneExpiredReputation;
 
         public float SlotPullCost => slotPullCost;
+        public float SlotHappyHourCost => slotHappyHourCost;
         public float SlotSpinSeconds => slotSpinSeconds;
         public float SlotCookieChance => slotCookieChance;
         public float SlotEggRollChance => slotEggRollChance;
