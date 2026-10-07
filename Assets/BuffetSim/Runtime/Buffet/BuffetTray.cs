@@ -18,6 +18,9 @@ namespace BuffetSim.Buffet
         [SerializeField] private int units;
         [SerializeField] private int lowWarningThreshold = 5;
         [SerializeField] private Transform standPoint;
+        [Tooltip("How many of this food one to-go box takes, and how many units a box holds in all.")]
+        [SerializeField] private int toGoMaxPerItem = 3;
+        [SerializeField] private int toGoMaxUnits = 10;
 
         [Header("Visuals (optional)")]
         [SerializeField] private Transform fillVisual;
@@ -44,6 +47,12 @@ namespace BuffetSim.Buffet
             lowWarningThreshold = lowThreshold;
             standPoint = stand;
             RefreshVisuals();
+        }
+
+        public void SetToGoLimits(int perItem, int totalUnits)
+        {
+            toGoMaxPerItem = Mathf.Max(1, perItem);
+            toGoMaxUnits = Mathf.Max(1, totalUnits);
         }
 
         public void SetVisuals(Transform fill, float fullHeight, float baseY, TextMesh trayLabel, GameObject warning)
@@ -82,6 +91,15 @@ namespace BuffetSim.Buffet
             string state = $"{foodName} tray: {units}/{capacity}";
             if (inventory == null) return state;
 
+            if (inventory.IsHoldingToGoBox)
+            {
+                if (IsEmpty) return $"{state} - nothing to box";
+                int have = inventory.CountInToGoBox(food);
+                if (have >= toGoMaxPerItem) return $"{state} - the box already has {have} {foodName} (max {toGoMaxPerItem})";
+                if (inventory.ToGoUnits >= toGoMaxUnits) return $"{state} - the box is full ({toGoMaxUnits} units)";
+                return $"[E] Box one {foodName}  (box: {inventory.ToGoUnits}/{toGoMaxUnits} units, {foodName} {have}/{toGoMaxPerItem})";
+            }
+
             if (inventory.IsHoldingRawFood && inventory.HeldFood == food)
                 return $"{state} - that {foodName} is raw. Cook it first";
 
@@ -100,7 +118,13 @@ namespace BuffetSim.Buffet
 
         public void Interact(PlayerInventory inventory)
         {
-            if (inventory == null || !inventory.IsHoldingCookedFood || inventory.HeldFood != food) return;
+            if (inventory == null) return;
+            if (inventory.IsHoldingToGoBox)
+            {
+                ScoopIntoBox(inventory);
+                return;
+            }
+            if (!inventory.IsHoldingCookedFood || inventory.HeldFood != food) return;
             if (IsFull)
             {
                 GameEvents.RaiseNotice($"{food.DisplayName} tray is already full.");
@@ -112,6 +136,19 @@ namespace BuffetSim.Buffet
             int moved = inventory.RemoveFoodUnits(space);
             Refill(moved);
             GameEvents.RaiseNotice($"Refilled {food.DisplayName} with {moved} units ({units}/{capacity}).");
+        }
+
+        /// <summary>One unit off the tray and into the box in hand, within the box's limits.</summary>
+        private void ScoopIntoBox(PlayerInventory inventory)
+        {
+            if (IsEmpty || food == null) return;
+            if (!inventory.AddToGoUnit(food, toGoMaxPerItem, toGoMaxUnits))
+            {
+                GameEvents.RaiseNotice(inventory.ToGoUnits >= toGoMaxUnits ? "The box is full." : $"The box won't take more {food.DisplayName}.");
+                return;
+            }
+            Take(1);
+            GameEvents.RaiseNotice($"Boxed one {food.DisplayName}. Box: {inventory.DescribeToGo()}");
         }
 
         private void RefreshVisuals()

@@ -59,6 +59,12 @@ namespace BuffetSim.UI
         private float _satisfactionFlash;
         private Color _satisfactionFlashColor = Color.white;
         private string _satisfactionBase = "Satisfaction --";
+        private Text _ticketText;
+        private bool _phoneRinging;
+        private bool _hasOrder;
+        private ToGoOrderInfo _order;
+        private string _ticketOutcome = string.Empty;
+        private float _ticketOutcomeUntil;
 
         public void Initialize(Font font, PlayerInventory inventory, PlayerPocket pocket = null, PlayerEffects effects = null)
         {
@@ -88,6 +94,10 @@ namespace BuffetSim.UI
             GameEvents.ChaosEventEnded += OnChaosEventEnded;
             GameEvents.WalletChanged += OnWalletChanged;
             GameEvents.WalletCredited += OnWalletCredited;
+            GameEvents.PhoneRingingChanged += OnPhoneRingingChanged;
+            GameEvents.ToGoOrderPlaced += OnToGoOrderPlaced;
+            GameEvents.ToGoOrderTicked += OnToGoOrderTicked;
+            GameEvents.ToGoOrderEnded += OnToGoOrderEnded;
         }
 
         private void OnDisable()
@@ -105,6 +115,10 @@ namespace BuffetSim.UI
             GameEvents.ChaosEventEnded -= OnChaosEventEnded;
             GameEvents.WalletChanged -= OnWalletChanged;
             GameEvents.WalletCredited -= OnWalletCredited;
+            GameEvents.PhoneRingingChanged -= OnPhoneRingingChanged;
+            GameEvents.ToGoOrderPlaced -= OnToGoOrderPlaced;
+            GameEvents.ToGoOrderTicked -= OnToGoOrderTicked;
+            GameEvents.ToGoOrderEnded -= OnToGoOrderEnded;
             if (_inventory != null) _inventory.Changed -= RefreshCarry;
             if (_pocket != null) _pocket.Changed -= RefreshPocket;
         }
@@ -140,6 +154,12 @@ namespace BuffetSim.UI
             {
                 _outcomes.RemoveAll(o => o.Until <= Time.time);
                 RefreshEventBanner();
+            }
+
+            if (!string.IsNullOrEmpty(_ticketOutcome) && Time.time >= _ticketOutcomeUntil)
+            {
+                _ticketOutcome = string.Empty;
+                RefreshTicket();
             }
 
             _statusTimer -= dt;
@@ -188,6 +208,8 @@ namespace BuffetSim.UI
             Text help = MakeText(root, "Help", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -20f), new Vector2(760f, 220f), 19, TextAnchor.UpperRight, FontStyle.Normal);
             help.text = "WASD move  |  Mouse look  |  Shift sprint  |  Space jump\nE interact (hold E when the prompt shows a bar)  |  Q drop / cancel\nLeft click throw or use pocket item  |  Tab next item  |  R crack a cookie\nEsc free cursor (click to re-lock)  |  F1 debug keys\n\nLoop: buy raw boxes at the cooler (back), cook them in the fryer, wok,\nsteamer or rice cooker, refill trays, clear plates, load the dishwasher.\nRed !! over a customer: they're about to run. Tackle with E.";
             help.color = new Color(1f, 1f, 1f, 0.8f);
+            _ticketText = MakeText(root, "Phone Ticket", new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -250f), new Vector2(640f, 260f), 22, TextAnchor.UpperRight, FontStyle.Normal);
+            _ticketText.text = string.Empty;
             Text crosshair = MakeText(root, "Crosshair", new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(40f, 40f), 28, TextAnchor.MiddleCenter, FontStyle.Normal);
             crosshair.text = "+";
             crosshair.color = new Color(1f, 1f, 1f, 0.7f);
@@ -454,6 +476,65 @@ namespace BuffetSim.UI
                 Until = Time.time + EventOutcomeSeconds,
             });
             RefreshEventBanner();
+        }
+
+        // ----- Phone orders -----
+
+        private void OnPhoneRingingChanged(bool ringing)
+        {
+            _phoneRinging = ringing;
+            RefreshTicket();
+        }
+
+        private void OnToGoOrderPlaced(ToGoOrderInfo order)
+        {
+            _order = order;
+            _hasOrder = true;
+            _ticketOutcome = string.Empty;
+            RefreshTicket();
+        }
+
+        private void OnToGoOrderTicked(ToGoOrderInfo order)
+        {
+            _order = order;
+            _hasOrder = true;
+            RefreshTicket();
+        }
+
+        private void OnToGoOrderEnded(ToGoOrderInfo order, bool delivered, string outcome)
+        {
+            _hasOrder = false;
+            if (outcome == "closed") _ticketOutcome = string.Empty;
+            else
+            {
+                _ticketOutcome = delivered
+                    ? $"<color=#{ColorUtility.ToHtmlStringRGB(GainColor)}>{order.CallerName}'s order picked up{(outcome == "delivered short" ? " (short)" : "")}.</color>"
+                    : $"<color=#{ColorUtility.ToHtmlStringRGB(LossColor)}>{order.CallerName}'s order expired.</color>";
+                _ticketOutcomeUntil = Time.time + 6f;
+            }
+            RefreshTicket();
+        }
+
+        /// <summary>Top right, under the help: the ring, then the ticket. The caller's words only stay while they talk.</summary>
+        private void RefreshTicket()
+        {
+            if (_ticketText == null) return;
+            string warm = ColorUtility.ToHtmlStringRGB(WarmColor);
+            if (_phoneRinging)
+            {
+                _ticketText.text = $"<color=#{warm}><size=32>PHONE RINGING</size></color>\nAnswer it at the front counter (E)";
+                return;
+            }
+            if (_hasOrder)
+            {
+                string words = _order.OnTheLine
+                    ? $"<color=#{warm}>{_order.Script}</color>"
+                    : "<color=#AAAAAA>(they hung up; it's from memory now)</color>";
+                string urgency = _order.SecondsLeft <= 30f ? ColorUtility.ToHtmlStringRGB(LossColor) : "FFFFFF";
+                _ticketText.text = $"<size=26>TO-GO #{_order.Id} for {_order.CallerName}</size>\n{words}\n<color=#{urgency}>{Mathf.CeilToInt(_order.SecondsLeft)}s</color> to rack a box on the pickup shelf by the door ({_order.TotalUnits} units, {_order.ItemCount} items)";
+                return;
+            }
+            _ticketText.text = _ticketOutcome;
         }
 
         private void RefreshEventBanner()

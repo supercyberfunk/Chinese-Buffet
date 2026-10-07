@@ -61,6 +61,7 @@ namespace BuffetSim.Stations
         private float _doneSeconds;
         private float _burnTimer;
         private int _flips;
+        private int _batchSize;
         private float _gaugePhase;
         private float _speedMultiplier = 1f;
         private float _speedUntil = float.NegativeInfinity;
@@ -160,7 +161,7 @@ namespace BuffetSim.Stations
             switch (_state)
             {
                 case CookerState.Loaded: return inventory.HandsFree ? "[Q] Take the raw box back out" : string.Empty;
-                case CookerState.Flipping:
+                case CookerState.Flipping: return inventory.HandsFree ? "[Q] Burner off, take the box back out" : string.Empty;
                 case CookerState.Cooking: return $"[Q] Dump the batch (loses {_units} units)";
                 case CookerState.Done:
                 case CookerState.Burning: return "[Q] Send it to the cooler";
@@ -207,13 +208,13 @@ namespace BuffetSim.Stations
             switch (_state)
             {
                 case CookerState.Loaded:
+                case CookerState.Flipping:
                     if (inventory.TryTakeFoodTray(_food, _units, true))
                     {
                         GameEvents.RaiseNotice($"Took the raw {_food.DisplayName} back out of the {displayName}.");
                         Reset();
                     }
                     break;
-                case CookerState.Flipping:
                 case CookerState.Cooking:
                     GameEvents.RaiseNotice($"Dumped {_units} half-cooked {_food.DisplayName} out of the {displayName}. Straight in the bin.");
                     Reset();
@@ -281,6 +282,7 @@ namespace BuffetSim.Stations
         private void StartCooking()
         {
             _state = CookerState.Cooking;
+            _batchSize = _units;
             _cookTotal = CookSeconds;
             _cookRemaining = _cookTotal;
             switch (kind)
@@ -398,7 +400,8 @@ namespace BuffetSim.Stations
         private void BurnStep()
         {
             float fraction = config != null ? config.BurnStepFraction : 0.25f;
-            int lost = Mathf.Clamp(Mathf.CeilToInt(_units * fraction), 1, _units);
+            // A quarter of the whole batch each step (20 > 15 > 10 > 5 > nothing), not of what's left.
+            int lost = Mathf.Clamp(Mathf.CeilToInt(Mathf.Max(_batchSize, _units) * fraction), 1, _units);
             _units -= lost;
             GameEvents.RaiseReputationNudged(-1f, "burning smell from the kitchen");
             if (_units <= 0)

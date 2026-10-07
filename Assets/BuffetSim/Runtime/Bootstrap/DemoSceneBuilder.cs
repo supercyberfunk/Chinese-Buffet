@@ -10,6 +10,7 @@ using BuffetSim.Models;
 using BuffetSim.Player;
 using BuffetSim.Stations;
 using BuffetSim.Tables;
+using BuffetSim.ToGo;
 using BuffetSim.UI;
 using Unity.AI.Navigation;
 using UnityEngine;
@@ -248,6 +249,9 @@ namespace BuffetSim.Bootstrap
             PrimitiveFactory.Solid("Counter", PrimitiveType.Cube, desk, new Vector3(-3f, 0.5f, -6f), new Vector3(3.2f, 1f, 1f), _wood);
             PrimitiveFactory.Visual("Cash Register", PrimitiveType.Cube, desk, new Vector3(-3f, 1.2f, -6f), new Vector3(0.6f, 0.4f, 0.5f), _darkSteel);
             AddSign(desk, new Vector3(-3f, 1.8f, -6f), "REGISTER", 0.22f, Color.white);
+            BuildPhone(desk, new Vector3(-4.2f, 1f, -6f));
+            BuildToGoBoxStack(desk, new Vector3(-1.8f, 1f, -6f));
+            BuildPickupRack(level, new Vector3(6.2f, 0f, FrontWallZ + 0.7f));
 
             var queueGo = new GameObject("Customer Queue");
             queueGo.transform.SetParent(desk, false);
@@ -261,6 +265,60 @@ namespace BuffetSim.Bootstrap
                 Vector3 slot = _queue.SlotPosition(i);
                 PrimitiveFactory.Visual($"Line Marker {i + 1}", PrimitiveType.Cube, desk, new Vector3(slot.x, 0.005f, slot.z), new Vector3(0.5f, 0.01f, 0.5f), marker);
             }
+        }
+
+        /// <summary>The wall phone on the counter: it rings, you answer, the order is in your head. It owns the phone-order logic.</summary>
+        private void BuildPhone(Transform desk, Vector3 position)
+        {
+            var go = new GameObject("Phone");
+            go.transform.SetParent(desk, false);
+            go.transform.position = position;
+            Material body = MaterialLibrary.Get(new Color(0.85f, 0.82f, 0.7f));
+            PrimitiveFactory.Visual("Base", PrimitiveType.Cube, go.transform, new Vector3(0f, 0.06f, 0f), new Vector3(0.26f, 0.12f, 0.32f), body);
+            GameObject handset = PrimitiveFactory.Visual("Handset", PrimitiveType.Cube, go.transform, new Vector3(0f, 0.16f, 0f), new Vector3(0.09f, 0.07f, 0.3f), MaterialLibrary.Get(new Color(0.75f, 0.72f, 0.6f)));
+            PrimitiveFactory.Visual("Cord", PrimitiveType.Cylinder, go.transform, new Vector3(0.16f, 0.2f, -0.1f), new Vector3(0.02f, 0.2f, 0.02f), _darkSteel);
+            BoxCollider trigger = go.AddComponent<BoxCollider>();
+            trigger.isTrigger = true;
+            trigger.center = new Vector3(0f, 0.2f, 0f);
+            trigger.size = new Vector3(0.5f, 0.5f, 0.5f);
+            TextMesh label = PrimitiveFactory.Label("Label", go.transform, new Vector3(0f, 0.6f, 0f), "PHONE", 0.14f, _font, Color.white);
+            label.gameObject.AddComponent<Billboard>();
+            var service = go.AddComponent<PhoneOrderService>();
+            service.Initialize(economyConfig, foodCatalog, _rng, label, handset.transform);
+        }
+
+        private void BuildToGoBoxStack(Transform desk, Vector3 position)
+        {
+            var go = new GameObject("To-Go Boxes");
+            go.transform.SetParent(desk, false);
+            go.transform.position = position;
+            Material card = MaterialLibrary.Get(new Color(0.95f, 0.95f, 0.9f));
+            for (int i = 0; i < 4; i++)
+                PrimitiveFactory.Visual($"Box {i + 1}", PrimitiveType.Cube, go.transform, new Vector3(0f, 0.09f + i * 0.18f, 0f), new Vector3(0.36f, 0.17f, 0.3f), card);
+            BoxCollider trigger = go.AddComponent<BoxCollider>();
+            trigger.isTrigger = true;
+            trigger.center = new Vector3(0f, 0.4f, 0f);
+            trigger.size = new Vector3(0.6f, 0.9f, 0.6f);
+            TextMesh label = PrimitiveFactory.Label("Label", go.transform, new Vector3(0f, 1.05f, 0f), "TO-GO BOXES", 0.12f, _font, Color.white);
+            label.gameObject.AddComponent<Billboard>();
+            go.AddComponent<ToGoBoxStack>();
+        }
+
+        /// <summary>The door-dash style shelf by the front door; a racked box is paid for and gone.</summary>
+        private void BuildPickupRack(Transform level, Vector3 position)
+        {
+            var go = new GameObject("To-Go Pickup Shelf");
+            go.transform.SetParent(level, false);
+            go.transform.position = position;
+            PrimitiveFactory.Solid("Shelf", PrimitiveType.Cube, go.transform, new Vector3(0f, 0.5f, 0f), new Vector3(1.4f, 1f, 0.5f), _wood);
+            PrimitiveFactory.Solid("Upper Shelf", PrimitiveType.Cube, go.transform, new Vector3(0f, 1.5f, 0f), new Vector3(1.4f, 0.06f, 0.5f), _wood);
+            PrimitiveFactory.Visual("Back", PrimitiveType.Cube, go.transform, new Vector3(0f, 1.25f, 0.22f), new Vector3(1.4f, 0.5f, 0.04f), _wood);
+            var spot = new GameObject("Box Spot").transform;
+            spot.SetParent(go.transform, false);
+            spot.localPosition = new Vector3(0f, 1.0f, 0f);
+            AddSign(go.transform, position + new Vector3(0f, 1.9f, 0f), "TO-GO PICKUP\n(rack the box, get paid)", 0.16f, new Color(1f, 0.85f, 0.4f));
+            var rack = go.AddComponent<PickupRack>();
+            rack.Configure(spot);
         }
 
         private void BuildBuffetLine(Transform level)
@@ -332,6 +390,7 @@ namespace BuffetSim.Bootstrap
                 int initialUnits = _rng.Next(Mathf.Min(8, economyConfig.TrayCapacity), economyConfig.TrayCapacity + 1);
                 tray.Configure(food, economyConfig.TrayCapacity, initialUnits, economyConfig.LowTrayWarning, stand.transform);
                 tray.SetVisuals(fill.transform, fullHeight, fillBase, label, warning.gameObject);
+                tray.SetToGoLimits(economyConfig.ToGoBoxMaxPerItem, economyConfig.ToGoBoxMaxUnits);
                 _floor.RegisterSource(tray);
             }
         }

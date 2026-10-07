@@ -223,6 +223,37 @@ namespace BuffetSim.Core
         public bool OnTheLine;
     }
 
+    /// <summary>
+    /// A packed to-go box offered at the pickup shelf. The phone service answers synchronously:
+    /// <see cref="Accepted"/> means the box was taken and paid for.
+    /// </summary>
+    public sealed class ToGoDeliveryRequest
+    {
+        public FoodDefinition[] Foods;
+        public int[] Units;
+        public Vector3 WorldPosition;
+        public bool Accepted;
+        public string Outcome = string.Empty;
+
+        public int TotalUnits
+        {
+            get
+            {
+                int total = 0;
+                if (Units != null) for (int i = 0; i < Units.Length; i++) total += Units[i];
+                return total;
+            }
+        }
+
+        public int CountOf(FoodDefinition food)
+        {
+            if (Foods == null || Units == null) return 0;
+            for (int i = 0; i < Foods.Length && i < Units.Length; i++)
+                if (Foods[i] == food) return Units[i];
+            return 0;
+        }
+    }
+
     public enum FortuneKind
     {
         General,
@@ -310,6 +341,8 @@ namespace BuffetSim.Core
         public static event Action<ToGoOrderInfo> ToGoOrderTicked;
         /// <summary>The order, whether it was delivered, a one-line outcome.</summary>
         public static event Action<ToGoOrderInfo, bool, string> ToGoOrderEnded;
+        /// <summary>A box put on the pickup shelf; whoever holds the open order answers in place.</summary>
+        public static event Action<ToGoDeliveryRequest> ToGoDeliveryRequested;
 
         // Fortunes and gambling
         public static event Action<Vector3> FortuneCookieCracked;
@@ -383,6 +416,7 @@ namespace BuffetSim.Core
         public static void RaiseToGoOrderPlaced(ToGoOrderInfo order) => ToGoOrderPlaced?.Invoke(order);
         public static void RaiseToGoOrderTicked(ToGoOrderInfo order) => ToGoOrderTicked?.Invoke(order);
         public static void RaiseToGoOrderEnded(ToGoOrderInfo order, bool delivered, string outcome) => ToGoOrderEnded?.Invoke(order, delivered, outcome ?? string.Empty);
+        public static void RaiseToGoDeliveryRequested(ToGoDeliveryRequest request) => ToGoDeliveryRequested?.Invoke(request);
 
         public static void RaiseFortuneCookieCracked(Vector3 at) => FortuneCookieCracked?.Invoke(at);
         public static void RaiseFortuneRevealed(FortuneReveal reveal) => FortuneRevealed?.Invoke(reveal);
@@ -455,6 +489,7 @@ namespace BuffetSim.Core
             ToGoOrderPlaced = null;
             ToGoOrderTicked = null;
             ToGoOrderEnded = null;
+            ToGoDeliveryRequested = null;
 
             FortuneCookieCracked = null;
             FortuneRevealed = null;
