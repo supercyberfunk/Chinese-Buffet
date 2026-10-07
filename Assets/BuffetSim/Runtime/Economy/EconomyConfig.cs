@@ -135,6 +135,10 @@ namespace BuffetSim.Economy
         [SerializeField] private float riceCookerSeconds = 30f;
         [Tooltip("Clean flips the wok minigame needs before the timer starts.")]
         [SerializeField] private int wokFlipsNeeded = 4;
+        [Tooltip("Width of the sweet spot on the wok gauge, as a fraction of the gauge. A flip outside it throws a unit on the floor.")]
+        [Range(0.1f, 0.9f)] [SerializeField] private float wokFlipWindow = 0.3f;
+        [Tooltip("Seconds the fryer basket takes to lower (hold E).")]
+        [SerializeField] private float fryerBasketSeconds = 1.5f;
         [Tooltip("Finished food waits this long in the cooker before it starts to burn.")]
         [SerializeField] private float burnGraceSeconds = 30f;
         [Tooltip("After the grace period, a share of the batch burns every this many seconds.")]
@@ -275,6 +279,8 @@ namespace BuffetSim.Economy
         public float SteamerSeconds => steamerSeconds;
         public float RiceCookerSeconds => riceCookerSeconds;
         public int WokFlipsNeeded => wokFlipsNeeded;
+        public float WokFlipWindow => wokFlipWindow;
+        public float FryerBasketSeconds => fryerBasketSeconds;
         public float BurnGraceSeconds => burnGraceSeconds;
         public float BurnStepSeconds => burnStepSeconds;
         public float BurnStepFraction => burnStepFraction;

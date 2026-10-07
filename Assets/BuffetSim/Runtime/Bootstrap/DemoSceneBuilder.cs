@@ -392,7 +392,9 @@ namespace BuffetSim.Bootstrap
             float shelfLength = boxCount * BuffetSlotSpacing + 0.5f;
             const float shelfZ = 11.5f;
             PrimitiveFactory.Solid("Cooler Shelf", PrimitiveType.Cube, kitchen, new Vector3(0f, 0.5f, shelfZ), new Vector3(shelfLength, 1f, 1f), _steel);
-            AddSign(kitchen, new Vector3(0f, 2.2f, shelfZ), "STORAGE COOLER\n$" + economyConfig.WholesaleBoxCost.ToString("0") + " per box of " + economyConfig.UnitsPerBox, 0.22f, new Color(0.7f, 0.9f, 1f));
+            string coolerSign = "STORAGE COOLER\n$" + economyConfig.WholesaleBoxCost.ToString("0") + " per box of " + economyConfig.UnitsPerBox
+                + (economyConfig.CookingEnabled ? "\nraw boxes go through a cooker" : "");
+            AddSign(kitchen, new Vector3(0f, 2.2f, shelfZ), coolerSign, 0.22f, new Color(0.7f, 0.9f, 1f));
 
             float startX = -(boxCount - 1) * BuffetSlotSpacing * 0.5f;
             for (int i = 0; i < boxCount; i++)
@@ -404,11 +406,11 @@ namespace BuffetSim.Bootstrap
 
                 PrimitiveFactory.Solid("Box", PrimitiveType.Cube, boxGo.transform, new Vector3(0f, 0.25f, 0f), new Vector3(1.4f, 0.5f, 0.8f), MaterialLibrary.Get(food.Color));
                 PrimitiveFactory.Visual("Lid", PrimitiveType.Cube, boxGo.transform, new Vector3(0f, 0.52f, 0f), new Vector3(1.45f, 0.05f, 0.85f), MaterialLibrary.Get(new Color(0.9f, 0.95f, 1f)));
-                TextMesh label = PrimitiveFactory.Label("Label", boxGo.transform, new Vector3(0f, 0.95f, 0f), food.DisplayName, 0.16f, _font, Color.white);
+                TextMesh label = PrimitiveFactory.Label("Label", boxGo.transform, new Vector3(0f, 0.95f, 0f), food.DisplayName, 0.14f, _font, Color.white);
                 label.gameObject.AddComponent<Billboard>();
 
                 var box = boxGo.AddComponent<StorageBox>();
-                box.Configure(food, economyConfig.WholesaleBoxCost, economyConfig.UnitsPerBox);
+                box.Configure(food, economyConfig.WholesaleBoxCost, economyConfig.UnitsPerBox, economyConfig.CookingEnabled, economyConfig.StartingCookedStock, label);
             }
 
             var dishwasherGo = new GameObject("Dishwasher");
@@ -424,7 +426,7 @@ namespace BuffetSim.Bootstrap
             BuildTrashCan(kitchen, new Vector3(-12.5f, 0f, 9.5f));
             BuildTrashCan(level, new Vector3(13f, 0f, -2.5f));
             BuildMaintenanceShelf(kitchen);
-            BuildCookingProps(kitchen);
+            BuildCookers(kitchen);
         }
 
         /// <summary>Lightbulbs, duct tape, the wrench and a glass pane on a shelf against the kitchen's left wall.</summary>
@@ -462,28 +464,126 @@ namespace BuffetSim.Bootstrap
             item.Configure(itemId, displayName, cost, uses, dailyStock, heavy, fragile, label);
         }
 
-        /// <summary>Meshy fryer and stove models as set dressing; cooking itself is out of scope for the demo.</summary>
-        private void BuildCookingProps(Transform kitchen)
+        /// <summary>The four cookers along the back wall: the Meshy fryer and stove where the models exist, primitives otherwise.</summary>
+        private void BuildCookers(Transform kitchen)
         {
-            var fryerPosition = new Vector3(-11f, 0f, 11.5f);
-            PlacedProp fryer = PropLibrary.Place(FryerModel, kitchen, fryerPosition, 0f, targetHeight: 1.0f);
-            if (fryer != null)
+            const float cookerZ = 11.5f;
+            BuildCooker(kitchen, CookerKind.Fryer, "Deep Fryer", new Vector3(-11f, 0f, cookerZ));
+            BuildCooker(kitchen, CookerKind.Steamer, "Steamer", new Vector3(-9.2f, 0f, cookerZ));
+            BuildCooker(kitchen, CookerKind.RiceCooker, "Rice Cooker", new Vector3(9.2f, 0f, cookerZ));
+            BuildCooker(kitchen, CookerKind.Wok, "Wok", new Vector3(11f, 0f, cookerZ));
+        }
+
+        private void BuildCooker(Transform kitchen, CookerKind kind, string cookerName, Vector3 position)
+        {
+            var go = new GameObject($"Cooker - {cookerName}");
+            go.transform.SetParent(kitchen, false);
+            go.transform.position = position;
+            Transform root = go.transform;
+
+            Material iron = MaterialLibrary.Get(new Color(0.2f, 0.2f, 0.22f));
+            Material cream = MaterialLibrary.Get(new Color(0.93f, 0.9f, 0.82f));
+            Material lightMat = MaterialLibrary.Get(new Color(0.25f, 0.25f, 0.27f));
+            Transform foodVisual = null;
+            float foodHeight = 0.15f;
+            Renderer indicator = null;
+            Transform basket = null;
+            float basketDrop = 0f;
+            float top;
+
+            switch (kind)
             {
-                PropLibrary.Place(FryerBasketModel, kitchen, new Vector3(fryerPosition.x, fryer.Top - 0.02f, fryerPosition.z), 0f, targetWidth: 0.9f, addCollider: false);
-                AddSign(kitchen, new Vector3(fryerPosition.x, fryer.Top + 0.9f, fryerPosition.z), "DEEP FRYER\n(cooking: coming soon)", 0.16f, Color.white);
+                case CookerKind.Fryer:
+                {
+                    PlacedProp body = PropLibrary.Place(FryerModel, root, position, 0f, targetHeight: 1.0f);
+                    if (body != null)
+                    {
+                        top = body.Top;
+                    }
+                    else
+                    {
+                        PrimitiveFactory.Solid("Body", PrimitiveType.Cube, root, new Vector3(0f, 0.5f, 0f), new Vector3(1.1f, 1f, 0.9f), _steel);
+                        PrimitiveFactory.Visual("Oil", PrimitiveType.Cube, root, new Vector3(0f, 0.98f, 0f), new Vector3(0.9f, 0.04f, 0.7f), MaterialLibrary.Get(new Color(0.75f, 0.6f, 0.2f)));
+                        top = 1f;
+                    }
+
+                    // The basket (and the food in it) hang off a rig the station lowers into the oil.
+                    var rig = new GameObject("Basket Rig").transform;
+                    rig.SetParent(root, false);
+                    rig.localPosition = new Vector3(0f, top + 0.2f, 0f);
+                    PlacedProp basketProp = PropLibrary.Place(FryerBasketModel, rig, new Vector3(position.x, top - 0.02f, position.z), 0f, targetWidth: 0.9f, addCollider: false);
+                    if (basketProp == null)
+                    {
+                        PrimitiveFactory.Visual("Basket", PrimitiveType.Cube, rig, new Vector3(0f, -0.1f, 0f), new Vector3(0.7f, 0.22f, 0.55f), _darkSteel);
+                        PrimitiveFactory.Visual("Basket Handle", PrimitiveType.Cube, rig, new Vector3(0f, 0.05f, -0.6f), new Vector3(0.1f, 0.04f, 0.5f), _darkSteel);
+                    }
+                    foodVisual = PrimitiveFactory.Visual("Food", PrimitiveType.Cube, rig, new Vector3(0f, 0.02f, 0f), new Vector3(0.55f, foodHeight, 0.42f), _steel).transform;
+                    basket = rig;
+                    basketDrop = 0.22f;
+                    indicator = PrimitiveFactory.Visual("Light", PrimitiveType.Sphere, root, new Vector3(0.35f, top - 0.15f, -0.46f), Vector3.one * 0.1f, lightMat).GetComponent<Renderer>();
+                    break;
+                }
+
+                case CookerKind.Wok:
+                {
+                    PlacedProp stove = PropLibrary.Place(StoveModel, root, position, 0f, targetHeight: 0.9f);
+                    if (stove != null)
+                    {
+                        top = stove.Top;
+                        for (int k = -1; k <= 1; k++)
+                        {
+                            var knobPosition = new Vector3(position.x + k * 0.25f, top * 0.8f, stove.WorldBounds.min.z - 0.01f);
+                            PropLibrary.Place(StoveKnobModel, root, knobPosition, 0f, targetWidth: 0.08f, addCollider: false);
+                        }
+                    }
+                    else
+                    {
+                        PrimitiveFactory.Solid("Stove", PrimitiveType.Cube, root, new Vector3(0f, 0.45f, 0f), new Vector3(1.2f, 0.9f, 0.9f), _darkSteel);
+                        top = 0.9f;
+                    }
+                    indicator = PrimitiveFactory.Visual("Burner", PrimitiveType.Cylinder, root, new Vector3(0f, top + 0.015f, 0f), new Vector3(0.55f, 0.015f, 0.55f), lightMat).GetComponent<Renderer>();
+                    PrimitiveFactory.Visual("Wok", PrimitiveType.Sphere, root, new Vector3(0f, top + 0.16f, 0f), new Vector3(0.9f, 0.32f, 0.9f), iron);
+                    PrimitiveFactory.Visual("Handle", PrimitiveType.Cube, root, new Vector3(0f, top + 0.2f, -0.65f), new Vector3(0.06f, 0.06f, 0.5f), iron);
+                    foodVisual = PrimitiveFactory.Visual("Food", PrimitiveType.Sphere, root, new Vector3(0f, top + 0.26f, 0f), new Vector3(0.6f, foodHeight, 0.6f), _steel).transform;
+                    break;
+                }
+
+                case CookerKind.Steamer:
+                {
+                    PrimitiveFactory.Solid("Tower", PrimitiveType.Cylinder, root, new Vector3(0f, 0.55f, 0f), new Vector3(0.9f, 0.55f, 0.9f), _steel);
+                    PrimitiveFactory.Visual("Tier 1", PrimitiveType.Cylinder, root, new Vector3(0f, 0.4f, 0f), new Vector3(0.96f, 0.02f, 0.96f), _darkSteel);
+                    PrimitiveFactory.Visual("Tier 2", PrimitiveType.Cylinder, root, new Vector3(0f, 0.75f, 0f), new Vector3(0.96f, 0.02f, 0.96f), _darkSteel);
+                    PrimitiveFactory.Visual("Scale", PrimitiveType.Cube, root, new Vector3(0.2f, 0.9f, -0.44f), new Vector3(0.25f, 0.12f, 0.03f), MaterialLibrary.Get(new Color(0.8f, 0.75f, 0.6f)));
+                    foodVisual = PrimitiveFactory.Visual("Food", PrimitiveType.Cylinder, root, new Vector3(0f, 1.14f, 0f), new Vector3(0.6f, foodHeight, 0.6f), _steel).transform;
+                    PrimitiveFactory.Visual("Lid", PrimitiveType.Sphere, root, new Vector3(0f, 1.3f, 0f), new Vector3(0.88f, 0.28f, 0.88f), _steel);
+                    PrimitiveFactory.Visual("Dial", PrimitiveType.Cylinder, root, new Vector3(-0.25f, 0.3f, -0.46f), new Vector3(0.12f, 0.02f, 0.12f), iron).transform.localRotation = Quaternion.Euler(90f, 0f, 0f);
+                    indicator = PrimitiveFactory.Visual("Light", PrimitiveType.Sphere, root, new Vector3(0.25f, 0.3f, -0.46f), Vector3.one * 0.1f, lightMat).GetComponent<Renderer>();
+                    top = 1.45f;
+                    break;
+                }
+
+                default:
+                {
+                    PrimitiveFactory.Solid("Cabinet", PrimitiveType.Cube, root, new Vector3(0f, 0.35f, 0f), new Vector3(0.9f, 0.7f, 0.9f), _darkSteel);
+                    PrimitiveFactory.Solid("Pot", PrimitiveType.Cylinder, root, new Vector3(0f, 1f, 0f), new Vector3(0.8f, 0.3f, 0.8f), cream);
+                    foodVisual = PrimitiveFactory.Visual("Food", PrimitiveType.Cylinder, root, new Vector3(0f, 1.3f, 0f), new Vector3(0.6f, foodHeight, 0.6f), _steel).transform;
+                    PrimitiveFactory.Visual("Lid", PrimitiveType.Sphere, root, new Vector3(0f, 1.46f, 0f), new Vector3(0.8f, 0.22f, 0.8f), cream);
+                    PrimitiveFactory.Visual("Lid Knob", PrimitiveType.Sphere, root, new Vector3(0f, 1.58f, 0f), Vector3.one * 0.08f, iron);
+                    PrimitiveFactory.Visual("COOK", PrimitiveType.Cube, root, new Vector3(0f, 0.95f, -0.41f), new Vector3(0.14f, 0.06f, 0.02f), MaterialLibrary.Get(new Color(0.7f, 0.1f, 0.1f)));
+                    indicator = PrimitiveFactory.Visual("Light", PrimitiveType.Sphere, root, new Vector3(0.22f, 1.05f, -0.4f), Vector3.one * 0.08f, lightMat).GetComponent<Renderer>();
+                    top = 1.6f;
+                    break;
+                }
             }
 
-            var stovePosition = new Vector3(11f, 0f, 11.5f);
-            PlacedProp stove = PropLibrary.Place(StoveModel, kitchen, stovePosition, 0f, targetHeight: 0.9f);
-            if (stove != null)
-            {
-                for (int k = -1; k <= 1; k++)
-                {
-                    var knobPosition = new Vector3(stovePosition.x + k * 0.25f, stove.Top * 0.8f, stove.WorldBounds.min.z - 0.01f);
-                    PropLibrary.Place(StoveKnobModel, kitchen, knobPosition, 0f, targetWidth: 0.08f, addCollider: false);
-                }
-                AddSign(kitchen, new Vector3(stovePosition.x, stove.Top + 0.9f, stovePosition.z), "WOK STOVE\n(cooking: coming soon)", 0.16f, Color.white);
-            }
+            GameObject smoke = PrimitiveFactory.Visual("Smoke", PrimitiveType.Sphere, root, new Vector3(0f, top + 0.6f, 0f), Vector3.one * 0.4f, MaterialLibrary.Get(new Color(0.3f, 0.3f, 0.3f)));
+            smoke.SetActive(false);
+            TextMesh label = PrimitiveFactory.Label("Label", root, new Vector3(0f, top + 0.95f, 0f), cookerName, 0.16f, _font, Color.white);
+            label.gameObject.AddComponent<Billboard>();
+            if (foodVisual != null) foodVisual.gameObject.SetActive(false);
+
+            var station = go.AddComponent<CookingStation>();
+            station.Configure(kind, cookerName, economyConfig, label, foodVisual, foodHeight, indicator, basket, basketDrop, smoke.transform);
         }
 
         private void BuildTrashCan(Transform parent, Vector3 position)
