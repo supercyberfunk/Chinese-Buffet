@@ -44,7 +44,7 @@ namespace BuffetSim.Stations
             if (inventory.IsHoldingPlates)
             {
                 return _loaded >= capacity
-                    ? $"Dishwasher is full ({_loaded}/{capacity}) - run it first"
+                    ? $"[E] Run the dishwasher ({_loaded}/{capacity}) and load {inventory.HeldPlates} plates"
                     : $"[E] Load {inventory.HeldPlates} dirty plates ({_loaded}/{capacity})";
             }
             if (inventory.HasNonPlateLoad) return $"Dishwasher ({_loaded}/{capacity}) - hands full";
@@ -56,6 +56,12 @@ namespace BuffetSim.Stations
             if (inventory.IsHoldingPlates)
             {
                 int space = capacity - _loaded;
+                // A full machine runs first, the way a helper's delivery does, so the held plates always have somewhere to go.
+                if (space <= 0)
+                {
+                    Run("Washed");
+                    space = capacity - _loaded;
+                }
                 int loaded = inventory.RemovePlates(space);
                 _loaded += loaded;
                 GameEvents.RaiseNotice(loaded > 0 ? $"Loaded {loaded} plates into the dishwasher ({_loaded}/{capacity})." : "The dishwasher is full.");

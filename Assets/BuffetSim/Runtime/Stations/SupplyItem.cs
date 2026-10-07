@@ -67,9 +67,17 @@ namespace BuffetSim.Stations
 
             if (inventory.IsHolding(itemId))
             {
+                // An untouched paid item goes back on the till over the bus; a partly used one is yours now.
+                bool unused = inventory.HeldItemUses == usesPerItem;
+                bool refunded = cost > 0f && unused;
+                if (refunded) GameEvents.RaiseMoneyRecovered(cost, $"{displayName} returned", transform.position);
                 inventory.ClearItem();
                 if (dailyStock >= 0) _stock++;
-                GameEvents.RaiseNotice($"Put the {displayName} back on the shelf.");
+                GameEvents.RaiseNotice(refunded
+                    ? $"Put the {displayName} back on the shelf. ${cost:0.00} back in the till."
+                    : cost > 0f
+                        ? $"Put the part-used {displayName} back on the shelf. No refund for an opened one."
+                        : $"Put the {displayName} back on the shelf.");
                 RefreshLabel();
                 return;
             }

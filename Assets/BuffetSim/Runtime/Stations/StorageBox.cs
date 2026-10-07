@@ -55,8 +55,9 @@ namespace BuffetSim.Stations
 
             if (inventory.HandsFree)
             {
-                if (!cookingEnabled) return $"[E] Buy a box of {foodName} (${boxCost:0.00} for {unitsPerBox} units)";
+                // Units put back (or sent over by a cooker) come out first, whether or not cooking is on.
                 if (cookedStock > 0) return $"[E] Take {Mathf.Min(cookedStock, inventory.FoodCapacity)} cooked {foodName} ({cookedStock} ready in the cooler)";
+                if (!cookingEnabled) return $"[E] Buy a box of {foodName} (${boxCost:0.00} for {unitsPerBox} units)";
                 if (_rawStock > 0) return $"[E] Take a raw box of {foodName} ({_rawStock} units put back) - cook it in the {food.Cooker.DisplayName()}";
                 return $"[E] Buy a raw box of {foodName} (${boxCost:0.00} for {unitsPerBox} units) - cook it in the {food.Cooker.DisplayName()}";
             }
@@ -85,8 +86,8 @@ namespace BuffetSim.Stations
 
             if (inventory.HandsFree)
             {
-                if (!cookingEnabled) BuyBox(inventory, false);
-                else if (cookedStock > 0) TakeCooked(inventory);
+                if (cookedStock > 0) TakeCooked(inventory);
+                else if (!cookingEnabled) BuyBox(inventory, false);
                 else TakeOrBuyRaw(inventory);
                 return;
             }

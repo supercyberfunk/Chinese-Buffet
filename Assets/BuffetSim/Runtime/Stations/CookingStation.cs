@@ -209,12 +209,25 @@ namespace BuffetSim.Stations
             {
                 case CookerState.Loaded:
                 case CookerState.Flipping:
-                    if (inventory.TryTakeFoodTray(_food, _units, true))
+                {
+                    // A fortune can cap what your hands manage; whatever doesn't fit stays raw in the cooker.
+                    int taken = Mathf.Min(_units, inventory.FoodCapacity);
+                    if (taken <= 0 || !inventory.TryTakeFoodTray(_food, taken, true)) break;
+                    _units -= taken;
+                    if (_units > 0)
+                    {
+                        GameEvents.RaiseNotice($"Took {taken} raw {_food.DisplayName} back out of the {displayName}; the other {_units} stayed in it, burner off.");
+                        _state = CookerState.Loaded;
+                        _flips = 0;
+                        RefreshVisuals();
+                    }
+                    else
                     {
                         GameEvents.RaiseNotice($"Took the raw {_food.DisplayName} back out of the {displayName}.");
                         Reset();
                     }
                     break;
+                }
                 case CookerState.Cooking:
                     GameEvents.RaiseNotice($"Dumped {_units} half-cooked {_food.DisplayName} out of the {displayName}. Straight in the bin.");
                     Reset();
@@ -420,13 +433,21 @@ namespace BuffetSim.Stations
             _speedUntil = Time.time + Mathf.Max(0f, seconds);
         }
 
-        /// <summary>At close whatever is still in the cooker gets put away; half-cooked food is finished off the clock.</summary>
+        /// <summary>
+        /// At close whatever is still in the cooker gets put away; half-cooked food is finished off the
+        /// clock. A wok whose burner was lit but never flipped hasn't started cooking, so its raw box
+        /// stays in the wok (burner off) for the morning instead of going to the cooler as cooked stock.
+        /// </summary>
         private void OnDayEnded(int day)
         {
             if (_food == null) return;
             switch (_state)
             {
                 case CookerState.Flipping:
+                    _state = CookerState.Loaded;
+                    _flips = 0;
+                    RefreshVisuals();
+                    break;
                 case CookerState.Cooking:
                 case CookerState.Done:
                 case CookerState.Burning:
