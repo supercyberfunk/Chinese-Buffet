@@ -107,8 +107,10 @@ namespace BuffetSim.Events
 
         private Kid BuildKid(int index)
         {
-            // Through the door in a loose clump, not a single point: the NavMesh sampler spreads them out.
-            Vector3 start = Ctx.DoorOutside + new Vector3(((float)Ctx.Rng.NextDouble() - 0.5f) * 1.6f, 0f, -index * 0.5f);
+            // Through the door in a loose clump spread along the sidewalk (four abreast, 0.4 m between
+            // rows), not a column running off it: twelve kids stay within the NavMesh sample distance.
+            float jitter = ((float)Ctx.Rng.NextDouble() - 0.5f) * 0.3f;
+            Vector3 start = Ctx.DoorOutside + new Vector3(((index % 4) - 1.5f) * 0.6f + jitter, 0f, -(index / 4) * 0.4f);
             GameObject root = ChaosActors.SpawnAgentRoot($"Dino Kid {index + 1}", transform, start, KidRadius, KidHeight, KidSpeed, Ctx.Rng, out NavMeshAgent agent);
             agent.angularSpeed = 720f;
 

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using BuffetSim.Bootstrap;
 using BuffetSim.Core;
 using BuffetSim.Tables;
@@ -38,8 +39,8 @@ namespace BuffetSim.Events
     }
 
     /// <summary>
-    /// Runner for <see cref="CousinEvent"/>: table, dishwasher, table, dishwasher, door. Tables are
-    /// found once on arrival; plates reach the dishwasher through the bus only, never by reference.
+    /// Runner for <see cref="CousinEvent"/>: table, dishwasher, table, dishwasher, door. Tables come
+    /// from the context; plates reach the dishwasher through the bus only, never by reference.
     /// </summary>
     public sealed class CousinRunner : ChaosEventRunner
     {
@@ -68,7 +69,6 @@ namespace BuffetSim.Events
         private WanderingNpc _npc;
         private TextMesh _label;
         private GameObject _stack;
-        private DiningTable[] _tables;
         private DiningTable _target;
         private Phase _phase;
         private float _speed;
@@ -92,7 +92,6 @@ namespace BuffetSim.Events
             _stack = PrimitiveFactory.Visual("Plate Stack", PrimitiveType.Cylinder, _figure.transform, new Vector3(0f, HandHeight, HandForward), new Vector3(0.3f, PlateThickness * 0.5f, 0.3f), MaterialLibrary.Get(PlateColor));
             _stack.SetActive(false);
 
-            _tables = FindObjectsByType<DiningTable>(FindObjectsSortMode.None);
             _phase = Phase.Idle;
             _recheckTimer = 0f;
             GameEvents.RaiseNotice("A cousin in a visor has walked in. He has not said hello. He is looking at the tables. (audio cue: the door bell, and a man who says nothing)");
@@ -137,10 +136,10 @@ namespace BuffetSim.Events
             DiningTable best = null;
             int bestPlates = 0;
             float bestDistance = float.MaxValue;
-            if (_tables == null) return null;
-            for (int i = 0; i < _tables.Length; i++)
+            IReadOnlyList<DiningTable> tables = Ctx.GetTables();
+            for (int i = 0; i < tables.Count; i++)
             {
-                DiningTable table = _tables[i];
+                DiningTable table = tables[i];
                 if (table == null || table.DirtyPlates <= 0) continue;
                 float distance = ChaosActors.HorizontalDistance(table.transform.position, _figure.transform.position);
                 if (table.DirtyPlates > bestPlates || (table.DirtyPlates == bestPlates && distance < bestDistance))
@@ -222,6 +221,12 @@ namespace BuffetSim.Events
         private void BackToIdle()
         {
             _target = null;
+            if (_timeUp)
+            {
+                // The stay ran out while he was walking to (or standing at) a table that had nothing left: straight out.
+                Leave();
+                return;
+            }
             _phase = Phase.Idle;
             _recheckTimer = 0f;
         }

@@ -199,8 +199,10 @@ namespace BuffetSim.Events
             sign.transform.SetParent(parent, false);
             sign.transform.position = Ctx.WindowPoint + new Vector3(0.8f, 1.9f, -0.2f);
             PrimitiveFactory.Visual("Card", PrimitiveType.Cube, sign.transform, Vector3.zero, new Vector3(0.4f, 0.5f, 0.02f), MaterialLibrary.Get(Color.white));
-            TextMesh text = PrimitiveFactory.Label("Grade", sign.transform, new Vector3(0f, 0f, -0.02f), grade, 0.38f, Ctx.Font, color);
-            text.transform.localRotation = Quaternion.identity;
+            // The room is on the +z side of the front window: the letter sits on that face of the card,
+            // turned to face it, so it reads the right way round from inside (a TextMesh reads from -z).
+            TextMesh text = PrimitiveFactory.Label("Grade", sign.transform, new Vector3(0f, 0f, 0.02f), grade, 0.38f, Ctx.Font, color);
+            text.transform.localRotation = Quaternion.Euler(0f, 180f, 0f);
             sign.AddComponent<GradeCard>();
         }
 

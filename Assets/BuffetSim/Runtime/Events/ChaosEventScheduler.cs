@@ -9,9 +9,12 @@ namespace BuffetSim.Events
     /// Rolls for a chaos event every EventCheckInterval seconds while the doors are open and someone
     /// is in the building, picks a weighted random eligible definition from the catalog and runs at
     /// most one scheduled event at a time. Events asked for by id on the bus (fortunes, the robbery
-    /// counter, the debug keys) run alongside it, outside the daily cap. Day boundaries come off the
-    /// bus; everything running is aborted when the lights go off. Without a DayClock it behaves as
-    /// if day 1 were open forever.
+    /// counter, the debug keys) run alongside it, outside the daily cap. A scheduled event whose
+    /// actors are done and which is only waiting on the player (a puddle to mop, a pane to fit)
+    /// gives up the slot and runs alongside too, so one ignored mess doesn't block the day. An
+    /// event that resolves inside OnBegin (nobody qualified) goes on cooldown but counts for nothing.
+    /// Day boundaries come off the bus; everything running is aborted when the lights go off.
+    /// Without a DayClock it behaves as if day 1 were open forever.
     /// </summary>
     public sealed class ChaosEventScheduler : MonoBehaviour
     {
@@ -38,7 +41,7 @@ namespace BuffetSim.Events
         /// <summary>The runner currently in progress, or null.</summary>
         public ChaosEventRunner ActiveRunner => _active != null && !_active.IsFinished ? _active : null;
         public bool HasActiveEvent => _activeDefinition != null;
-        /// <summary>Requested events currently running next to the scheduled one.</summary>
+        /// <summary>Events running next to the scheduled one: requested by id, or scheduled ones now only waiting on the player.</summary>
         public int ExtraCount => _extras.Count;
         public int EventsToday => _eventsToday;
         public int Day => _day;
@@ -175,18 +178,39 @@ namespace BuffetSim.Events
         {
             ChaosEventRunner runner = definition.Begin(_ctx, transform);
             if (runner == null) return null;
+            if (runner.IsFinished)
+            {
+                // Resolved inside OnBegin (nobody qualified): the roll moves on to something else,
+                // but it takes no slot in the daily cap and starts no gap.
+                _endedAt[definition] = Time.time;
+                _active = null;
+                _activeDefinition = null;
+                return runner;
+            }
             _active = runner;
             _activeDefinition = definition;
             _eventsToday++;
-            if (runner.IsFinished) RecordEnded(); // some events resolve inside OnBegin
             return runner;
         }
 
-        /// <summary>Notices a runner that finished (or vanished) and starts its cooldown.</summary>
+        /// <summary>
+        /// Notices a runner that finished (or vanished) and starts its cooldown. A runner that is only
+        /// waiting on the player moves to the extras (aborted at close, pruned when it finishes) and
+        /// frees the scheduled slot the same way.
+        /// </summary>
         private void TrackActive()
         {
             if (_activeDefinition == null) return;
-            if (_active == null || _active.IsFinished) RecordEnded();
+            if (_active == null || _active.IsFinished)
+            {
+                RecordEnded();
+                return;
+            }
+            if (_active.WaitingOnPlayer)
+            {
+                _extras.Add(_active);
+                RecordEnded();
+            }
         }
 
         private void RecordEnded()

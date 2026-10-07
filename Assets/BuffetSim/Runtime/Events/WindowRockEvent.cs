@@ -61,7 +61,8 @@ namespace BuffetSim.Events
                 Ctx.Window.Repaired += OnWindowFixed;
             }
 
-            CustomerAgent target = ChaosActors.PickSeatedCustomer(Ctx) ?? ChaosActors.PickCustomer(Ctx, c => !c.IsKnockedOut && !c.IsPaid);
+            // Seated diners only: a dasher or a held customer would be paid and knocked out twice over.
+            CustomerAgent target = ChaosActors.PickSeatedCustomer(Ctx);
             Vector3 from = new Vector3(Ctx.WindowPoint.x, 1.6f, Ctx.WindowPoint.z);
             Vector3 fallback = ChaosActors.SampleNavMesh(Ctx.FloorBounds.center, 5f);
             GameEvents.RaiseNotice(_beans
@@ -89,6 +90,7 @@ namespace BuffetSim.Events
 
         private void OnLanded(ThrownObject thrown, Interaction.IThrowTarget hit, Vector3 at)
         {
+            if (this == null || IsFinished) return; // the throw outlives an aborted runner
             _landed = true;
             var customer = hit as CustomerAgent;
             if (customer != null && !customer.IsKnockedOut)
@@ -116,7 +118,12 @@ namespace BuffetSim.Events
                 GameEvents.RaiseNotice("The rock is lying there. Pick it up (E): one throw, it homes on a seated customer, then it's a rock again.");
             }
 
-            if (Ctx.Window == null) Finish(true, "Someone got rocked");
+            if (Ctx.Window == null)
+            {
+                Finish(true, "Someone got rocked");
+                return;
+            }
+            WaitingOnPlayer = true; // only the pane is left; the scheduler can roll other events meanwhile
         }
 
         private void OnWindowFixed()

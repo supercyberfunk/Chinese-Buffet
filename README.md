@@ -227,13 +227,15 @@ delivery) is a request object that travels over the bus and comes back filled in
 
 Subclass `ChaosEvent` (a ScriptableObject holding the tunables) and `ChaosEventRunner` (the
 MonoBehaviour that plays it out: spawn actors under the runner, `Finish(resolved, outcome)` when it's
-over, clean up in `Abort()` for day end). Add it to `ChaosEventCatalog.CreateDefault()` or to a
+over, clean up in `Abort()` for day end, and set `WaitingOnPlayer` once only a mess is left so the
+scheduler can roll other events around it). Add it to `ChaosEventCatalog.CreateDefault()` or to a
 catalog asset assigned to the builder's **Chaos Catalog** slot. Runners get a `ChaosEventContext`
-(door, register, restroom, buffet line, dishwasher, floor bounds, the queue, the live customers, the
-player transform) and talk to the rest of the game only through `GameEvents`. `EventActor` gives a
+(door, register, restroom, buffet line, tables, dishwasher, floor bounds, the queue, the live
+customers, the player transform) and talk to the rest of the game only through `GameEvents`. `EventActor` gives a
 spawned person an E prompt and a throw target in one line; `RepairPoint` is a hold-E job that needs a
 tool from the shelf. An event with weight 0 never rolls; the fortune teller, the robbery counter and
-the debug panel start those by id with `GameEvents.RaiseChaosEventRequested`.
+the debug panel start those by id with `GameEvents.RaiseChaosEventRequested`, which answers false
+when the doors are closed or nothing started.
 
 ## Not in this demo (yet)
 

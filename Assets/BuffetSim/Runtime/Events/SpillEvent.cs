@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using BuffetSim.Core;
+using BuffetSim.Customers;
 using UnityEngine;
 using UnityEngine.AI;
 
@@ -40,6 +41,9 @@ namespace BuffetSim.Events
     public sealed class SpillRunner : ChaosEventRunner
     {
         private const int PlacementAttempts = 40;
+        /// <summary>No puddle under someone's feet or under the front of the line: they would go down without taking a step.</summary>
+        private const float PersonClearance = 1f;
+        private const int LineSlotsKeptClear = 6;
         private static readonly Color SauceColor = new Color(0.55f, 0.05f, 0.08f);
 
         private readonly List<SpillPuddle> _puddles = new List<SpillPuddle>();
@@ -62,11 +66,15 @@ namespace BuffetSim.Events
                 _puddles.Add(SpawnPuddle(point, i));
             }
             _placedAll = true;
+            WaitingOnPlayer = true; // no actors, only the mess: the scheduler can roll other events meanwhile
             GameEvents.RaiseNotice("Sweet and sour everywhere. Mop it up before someone goes down.");
             if (_puddles.Count == 0) Finish(true, "Floor mopped");
         }
 
-        /// <summary>A walkable point in the dining area, spaced from the other puddles and clear of the register; falls back to any walkable point.</summary>
+        /// <summary>
+        /// A walkable point in the dining area, spaced from the other puddles and clear of the register,
+        /// of everyone in the building and of the front of the line; falls back to any walkable point.
+        /// </summary>
         private Vector3 PickPoint(float spacing, float clearance)
         {
             Vector3 fallback = Vector3.zero;
@@ -82,6 +90,7 @@ namespace BuffetSim.Events
                     haveFallback = true;
                 }
                 if (ChaosActors.HorizontalDistance(point, Ctx.RegisterPoint) < clearance) continue;
+                if (NearAnyone(point)) continue;
 
                 bool tooClose = false;
                 for (int i = 0; i < _placed.Count; i++)
@@ -96,6 +105,25 @@ namespace BuffetSim.Events
                 return point;
             }
             return haveFallback ? fallback : ChaosActors.SampleNavMesh(Ctx.FloorBounds.center, 5f);
+        }
+
+        /// <summary>Within <see cref="PersonClearance"/> of a customer in the building or of one of the first line slots.</summary>
+        private bool NearAnyone(Vector3 point)
+        {
+            IReadOnlyList<CustomerAgent> customers = Ctx.GetCustomersInStore();
+            for (int i = 0; i < customers.Count; i++)
+            {
+                if (customers[i] == null) continue;
+                if (ChaosActors.HorizontalDistance(point, customers[i].transform.position) < PersonClearance) return true;
+            }
+            if (Ctx.Queue != null)
+            {
+                for (int i = 0; i < LineSlotsKeptClear; i++)
+                {
+                    if (ChaosActors.HorizontalDistance(point, Ctx.Queue.SlotPosition(i)) < PersonClearance) return true;
+                }
+            }
+            return false;
         }
 
         private SpillPuddle SpawnPuddle(Vector3 point, int index)

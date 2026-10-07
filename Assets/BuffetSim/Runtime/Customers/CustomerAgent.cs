@@ -20,7 +20,8 @@ namespace BuffetSim.Customers
     /// of paying (dine and dash); the player can tackle them, which knocks them out and sprays their
     /// bill across the floor as coins. Chaos events, fortunes and thrown things reach a customer only
     /// through the public surface below: promote, restyle, slip, stagger, hold in place, pay now,
-    /// storm out, vanish, follow someone, knock out, or hand the E key to the event for a while.
+    /// storm out, vanish, follow someone, knock out, hand the E key to the event for a while, or
+    /// hand the transform to a script (dragged down a drain) and get it back.
     /// </summary>
     [RequireComponent(typeof(NavMeshAgent))]
     public sealed class CustomerAgent : MonoBehaviour, IHoldInteractable, IThrowTarget
@@ -624,6 +625,31 @@ namespace BuffetSim.Customers
         }
 
         /// <summary>
+        /// Hands the transform to an event script (dragged down a drain): the NavMeshAgent is switched
+        /// off so it stops projecting the body back onto the floor every frame. Pair with
+        /// <see cref="EndScriptedMotion"/> unless the customer vanishes first.
+        /// </summary>
+        public void BeginScriptedMotion()
+        {
+            if (_agent == null || !_agent.enabled) return;
+            if (_agent.isOnNavMesh)
+            {
+                _agent.isStopped = true;
+                _agent.ResetPath();
+            }
+            _agent.enabled = false; // the script owns the transform now
+        }
+
+        /// <summary>Gives the transform back to the NavMeshAgent, warped onto the NavMesh wherever the script left the body.</summary>
+        public void EndScriptedMotion()
+        {
+            if (_agent == null || _agent.enabled) return;
+            _agent.enabled = true;
+            if (NavMesh.SamplePosition(transform.position, out NavMeshHit hit, 3f, NavMesh.AllAreas)) _agent.Warp(hit.position);
+            if (_agent.isOnNavMesh) _agent.isStopped = _held || _slipTimer > 0f || _state == State.KnockedOut;
+        }
+
+        /// <summary>
         /// The bill settles right now at whatever it stands (times <paramref name="multiplier"/>) and the
         /// table is freed with no plates on it. What happens to the customer next is up to the caller
         /// (knock out, vanish down a drain). False if already paid, gone or out the door.
@@ -674,12 +700,13 @@ namespace BuffetSim.Customers
 
         /// <summary>
         /// Gets up and storms out without paying (counted as a walkout), from wherever they are. The
-        /// table is freed with no plates. No-op if already leaving, out cold, paid or gone.
+        /// table is freed with no plates. Returns false (and does nothing) if already leaving, out
+        /// cold, paid or gone, so the caller can skip the fine and the "left unpaid" outcome.
         /// </summary>
-        public void LeaveWithoutPaying(string notice)
+        public bool LeaveWithoutPaying(string notice)
         {
-            if (_ctx == null || _agent == null || _paid || _escaped) return;
-            if (_state == State.Leaving || _state == State.Done || _state == State.KnockedOut) return;
+            if (_ctx == null || _agent == null || _paid || _escaped) return false;
+            if (_state == State.Leaving || _state == State.Done || _state == State.KnockedOut) return false;
 
             _paid = true;
             _stormingOut = true;
@@ -698,6 +725,7 @@ namespace BuffetSim.Customers
             if (!string.IsNullOrEmpty(notice)) GameEvents.RaiseNotice(notice);
             _agent.speed = _baseSpeed * 1.5f;
             EnterState(State.Leaving);
+            return true;
         }
 
         /// <summary>Gone, right now, no receipt and no walkout (dragged down a drain, beamed up). Frees the table and the line spot.</summary>

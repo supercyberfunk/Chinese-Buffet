@@ -1,7 +1,7 @@
-using BuffetSim.Bootstrap;
 using BuffetSim.Core;
 using BuffetSim.Customers;
 using BuffetSim.Player;
+using BuffetSim.Tables;
 using UnityEngine;
 
 namespace BuffetSim.Events
@@ -45,13 +45,11 @@ namespace BuffetSim.Events
     /// <summary>Runner for <see cref="BoothLampEvent"/>: one dark lamp, one frightened customer, one lightbulb.</summary>
     public sealed class BoothLampRunner : ChaosEventRunner
     {
-        private static readonly Color DeadBulb = new Color(0.2f, 0.2f, 0.22f);
         private static readonly string[] Statuses = { "Sitting in the dark", "Can't see the food", "Whispering to the lamp", "This is how it ends" };
 
         private BoothLampEvent _event;
         private CustomerAgent _customer;
-        private Renderer _lamp;
-        private Material _lampMaterial;
+        private DiningTable _table; // kept apart from the customer: they lose the table if a rock gets them first
         private RepairPoint _repair;
         private float _patience;
         private float _darkTimer;
@@ -68,15 +66,14 @@ namespace BuffetSim.Events
                 return;
             }
 
-            _lamp = _customer.Table.Lamp;
-            _lampMaterial = _lamp.sharedMaterial;
-            _lamp.sharedMaterial = MaterialLibrary.Get(DeadBulb);
+            _table = _customer.Table;
+            _table.SetLampLit(false);
             _customer.Hold(Statuses[0]);
             _patience = _event != null ? _event.PatienceSeconds : 75f;
             _darkTimer = _event != null ? _event.DarkInterval : 15f;
             _statusTimer = 8f;
 
-            Vector3 lampPosition = _lamp.transform.position;
+            Vector3 lampPosition = _table.Lamp.transform.position;
             _repair = RepairPoint.Create("Repair - Lamp", transform, lampPosition, new Vector3(0.9f, 0.9f, 0.9f),
                 CarryItems.Lightbulb, "a lightbulb", _event != null ? _event.HoldSeconds : 3f, "Change the lightbulb", "the maintenance shelf in the kitchen", OnFixed);
             GameEvents.RaiseNotice($"The lamp over {_customer.CustomerName}'s table went out. They've gone very quiet. Lightbulbs are on the maintenance shelf. (audio cue: a filament pinging)");
@@ -85,8 +82,9 @@ namespace BuffetSim.Events
         private void Update()
         {
             if (IsFinished) return;
-            if (_customer == null)
+            if (_customer == null || !_customer.IsHeld)
             {
+                // Gone, or something else (a rock, a knock-out) took them out of the hold first.
                 RestoreLamp();
                 Finish(false, "The customer under the dead lamp is gone");
                 return;
@@ -127,14 +125,19 @@ namespace BuffetSim.Events
             if (IsFinished) return;
             RestoreLamp();
             string name = _customer.CustomerName;
-            _customer.LeaveWithoutPaying($"{name} walked out of the dark without paying. The lamp came back on as they reached the door, obviously.");
+            if (!_customer.LeaveWithoutPaying($"{name} walked out of the dark without paying. The lamp came back on as they reached the door, obviously."))
+            {
+                // Already paid, out cold or on the way out: nothing was lost to the dark.
+                Finish(false, $"{name} was already gone");
+                return;
+            }
             GameEvents.RaiseReputationNudged(_event != null ? _event.ReputationIfIgnored : -6f, "left in the dark");
             Finish(false, $"{name} left unpaid");
         }
 
         private void RestoreLamp()
         {
-            if (_lamp != null && _lampMaterial != null) _lamp.sharedMaterial = _lampMaterial;
+            if (_table != null) _table.SetLampLit(true);
         }
 
         public override void Abort()

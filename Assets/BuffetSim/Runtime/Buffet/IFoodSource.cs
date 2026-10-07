@@ -13,6 +13,9 @@ namespace BuffetSim.Buffet
         /// <summary>Where a customer should stand to grab from this source.</summary>
         Vector3 StandPosition { get; }
 
+        /// <summary>Where the food itself is (the pan on the counter): flames and smoke go here, not where the customer stands.</summary>
+        Vector3 Position { get; }
+
         /// <summary>Removes up to <paramref name="requested"/> units and returns how many were actually taken.</summary>
         int Take(int requested);
 

@@ -18,9 +18,13 @@ namespace BuffetSim.Tables
         [SerializeField] private Renderer statusLight;
         [SerializeField] private Renderer lamp;
 
+        private static readonly Color DeadBulbColor = new Color(0.2f, 0.2f, 0.22f);
+
         private readonly List<GameObject> _plateVisuals = new List<GameObject>();
         private object _reservedBy;
         private int _dirtyPlates;
+        private Material _litLampMaterial;
+        private bool _lampLit = true;
 
         public bool IsReserved => _reservedBy != null;
         public int DirtyPlates => _dirtyPlates;
@@ -78,6 +82,25 @@ namespace BuffetSim.Tables
                 ? $"Picked up {taken} plates, {_dirtyPlates} still on the table."
                 : $"Picked up {taken} plates. Table is clean.");
             RefreshVisuals();
+        }
+
+        /// <summary>
+        /// Turns the lamp over the table off (a dead-bulb grey) or back on to whatever it was before;
+        /// the booth-lamp event owns the timing, the table owns the swap. No-op without a lamp.
+        /// </summary>
+        public void SetLampLit(bool lit)
+        {
+            if (lamp == null || _lampLit == lit) return;
+            _lampLit = lit;
+            if (lit)
+            {
+                if (_litLampMaterial != null) lamp.sharedMaterial = _litLampMaterial;
+            }
+            else
+            {
+                _litLampMaterial = lamp.sharedMaterial;
+                lamp.sharedMaterial = MaterialLibrary.Get(DeadBulbColor);
+            }
         }
 
         /// <summary>Someone else cleared it (a cousin in a visor): every plate comes off. Returns how many there were.</summary>

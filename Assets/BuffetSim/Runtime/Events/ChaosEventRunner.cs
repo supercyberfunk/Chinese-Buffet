@@ -18,6 +18,13 @@ namespace BuffetSim.Events
 
         public ChaosEventInfo Info { get; private set; }
         public bool IsFinished => _finished;
+        /// <summary>
+        /// True once the event's actors are done and only a mess the player has to deal with is left
+        /// (puddles to mop, a pane to fit, a hole to tape). The scheduler then stops treating it as
+        /// the running event so other events can roll; it still finishes on its own and is still
+        /// aborted at close. Set it from the runner, never clear it.
+        /// </summary>
+        public bool WaitingOnPlayer { get; protected set; }
         /// <summary>The definition this runner was started from; cast it in <see cref="OnBegin"/> for tuning values.</summary>
         public ChaosEvent Definition { get; private set; }
         protected ChaosEventContext Ctx { get; private set; }

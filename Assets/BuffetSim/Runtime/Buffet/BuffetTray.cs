@@ -36,6 +36,7 @@ namespace BuffetSim.Buffet
         public bool IsEmpty => units <= 0;
         public bool IsFull => units >= capacity;
         public Vector3 StandPosition => standPoint != null ? standPoint.position : transform.position - transform.forward;
+        public Vector3 Position => transform.position;
 
         public event Action<BuffetTray> Changed;
 

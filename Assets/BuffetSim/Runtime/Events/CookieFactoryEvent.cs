@@ -253,7 +253,7 @@ namespace BuffetSim.Events
                 return;
             }
             int take = Mathf.Min(_scoopSize, _cookies);
-            if (!inventory.TryTakeItem(ItemId, "a tray of blank cookies", 1, false, false))
+            if (!inventory.TryTakeItem(ItemId, "tray of blank cookies", 1, false, false)) // bare noun: the trash can and spills say "the ..."
             {
                 GameEvents.RaiseNotice("The tray didn't take. Try again with empty hands.");
                 return;

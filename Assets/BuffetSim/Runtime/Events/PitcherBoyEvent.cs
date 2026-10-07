@@ -147,6 +147,7 @@ namespace BuffetSim.Events
             _gone = true;
             if (_figure != null) Destroy(_figure);
             _figure = null;
+            WaitingOnPlayer = true; // only the hole and the juice are left; the scheduler can roll other events meanwhile
             CheckResolved();
         }
 

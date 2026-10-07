@@ -77,8 +77,9 @@ namespace BuffetSim.Events
         private void Update()
         {
             if (IsFinished) return;
-            if (_customer == null)
+            if (_customer == null || (_landed && !_customer.IsHeld))
             {
+                // Gone, or something else (a rock, a knock-out) took them out of the hold: no tile, no lawyer.
                 Finish(false, "The customer under the tile is gone");
                 return;
             }
@@ -138,7 +139,12 @@ namespace BuffetSim.Events
         {
             if (IsFinished) return;
             string name = _customer.CustomerName;
-            _customer.LeaveWithoutPaying($"{name} stood up, let the tile slide off, and left without paying. Their lawyer is already on the phone.");
+            if (!_customer.LeaveWithoutPaying($"{name} stood up, let the tile slide off, and left without paying. Their lawyer is already on the phone."))
+            {
+                // Already paid, out cold or on the way out: no walkout, so no fine and no grudge.
+                Finish(false, $"{name} was already gone");
+                return;
+            }
             float fine = Ctx.Config != null ? Ctx.Config.LawsuitFine : 50f;
             GameEvents.RaiseExpenseCharged(fine, $"Lawsuit: ceiling tile vs. {name}", Ctx.RegisterPoint + Vector3.up);
             GameEvents.RaiseReputationNudged(_event != null ? _event.ReputationIfIgnored : -5f, "the ceiling tile");

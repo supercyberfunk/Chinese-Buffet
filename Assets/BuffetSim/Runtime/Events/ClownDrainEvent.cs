@@ -148,6 +148,7 @@ namespace BuffetSim.Events
                         _stage = 2;
                         _timer = drag;
                         _victim.PayNow();
+                        _victim.BeginScriptedMotion(); // the NavMeshAgent would keep lifting them back onto the floor
                         GameEvents.RaiseNotice($"The hand has {_victim.CustomerName}. {_victim.CustomerName}'s bill paid itself on the way down. (audio cue: three honks, descending)");
                     }
                     break;
@@ -173,7 +174,12 @@ namespace BuffetSim.Events
 
         public override void Abort()
         {
-            if (_victim != null) _victim.ReleaseHold();
+            if (_victim != null)
+            {
+                _victim.transform.localScale = Vector3.one;
+                _victim.EndScriptedMotion();
+                _victim.ReleaseHold();
+            }
             EndSilently();
         }
     }

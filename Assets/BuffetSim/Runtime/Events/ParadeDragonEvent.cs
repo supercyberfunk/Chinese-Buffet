@@ -143,8 +143,8 @@ namespace BuffetSim.Events
             int lost = tray.Take(tray.Units);
             string food = tray.Food != null ? tray.Food.DisplayName : "food";
             _torchedFood = food;
-            SpawnFlames(tray.StandPosition);
-            SpawnSmoke(tray.StandPosition);
+            SpawnFlames(tray.Position);
+            SpawnSmoke(tray.Position);
             GameEvents.RaiseLightingCueRequested(FlameOrange, 1.5f);
             GameEvents.RaiseReputationNudged(_event != null ? _event.ReputationForTorching : -3f, "a torched tray");
             GameEvents.RaiseNotice($"The dragon torched the {food} tray: {lost} units gone, down to the steel. (audio cue: a propane roar, the smoke alarm considering its options)");
@@ -217,7 +217,7 @@ namespace BuffetSim.Events
         private void PullTarp(PlayerInventory inventory)
         {
             if (IsFinished || _unmasked || inventory == null) return;
-            if (!inventory.TryTakeItem(CarryItems.Tarp, "the dragon tarp", 1, true, false))
+            if (!inventory.TryTakeItem(CarryItems.Tarp, "dragon tarp", 1, true, false)) // bare noun: the trash can and spills say "the ..."
             {
                 GameEvents.RaiseNotice("Your hands are full, and the tarp is not a one-handed job.");
                 return;
@@ -261,7 +261,8 @@ namespace BuffetSim.Events
             if (_kidsLeft <= 0) Finish(true, "Tarp pulled off; the kids ran");
         }
 
-        private void SpawnFlames(Vector3 standPosition)
+        /// <summary>Five fading spheres over <paramref name="at"/> (the torched pan).</summary>
+        private void SpawnFlames(Vector3 at)
         {
             var flames = new List<GameObject>();
             for (int i = 0; i < 5; i++)
@@ -270,7 +271,8 @@ namespace BuffetSim.Events
                 float jitterZ = ((float)Ctx.Rng.NextDouble() - 0.5f) * 0.6f;
                 float size = 0.35f + (float)Ctx.Rng.NextDouble() * 0.2f;
                 GameObject flame = PrimitiveFactory.Visual($"Flame {i + 1}", PrimitiveType.Sphere, transform, Vector3.zero, Vector3.one * size, MaterialLibrary.Get(i % 2 == 0 ? FlameOrange : FlameYellow));
-                flame.transform.position = standPosition + new Vector3(jitterX, 0.9f + i * 0.22f, jitterZ);
+                // The pan sits at counter height already, so the flames start just above it.
+                flame.transform.position = at + new Vector3(jitterX, 0.25f + i * 0.22f, jitterZ);
                 flames.Add(flame);
             }
             StartCoroutine(BurnOut(flames));
@@ -298,10 +300,10 @@ namespace BuffetSim.Events
             }
         }
 
-        private void SpawnSmoke(Vector3 standPosition)
+        private void SpawnSmoke(Vector3 at)
         {
             _smoke = PrimitiveFactory.Visual("Smoke", PrimitiveType.Sphere, transform, Vector3.zero, Vector3.one * 0.9f, MaterialLibrary.Get(SmokeColor));
-            _smoke.transform.position = standPosition + Vector3.up * 2.2f;
+            _smoke.transform.position = at + Vector3.up * 1.5f;
             _smokeRisen = 0f;
         }
 
