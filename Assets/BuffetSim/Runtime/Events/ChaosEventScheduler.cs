@@ -93,22 +93,24 @@ namespace BuffetSim.Events
 
         /// <summary>
         /// An event asked for by id: it runs on top of whatever is scheduled, doesn't count against
-        /// the daily cap, and is skipped silently once the doors have closed. Unknown ids are logged.
+        /// the daily cap, and is skipped once the doors have closed. The request carries the answer;
+        /// unknown ids are logged.
         /// </summary>
-        private void OnEventRequested(string id)
+        private void OnEventRequested(ChaosEventRequest request)
         {
-            if (!_ready || string.IsNullOrEmpty(id)) return;
+            if (!_ready || request == null || request.Accepted || string.IsNullOrEmpty(request.Id)) return;
             if (_phase == DayPhase.Closed) return;
-            ChaosEvent definition = catalog.Find(id);
+            ChaosEvent definition = catalog.Find(request.Id);
             if (definition == null)
             {
-                Debug.LogWarning($"[Buffet] No chaos event with id '{id}' in the catalog.");
+                Debug.LogWarning($"[Buffet] No chaos event with id '{request.Id}' in the catalog.");
                 return;
             }
             ChaosEventRunner runner = definition.Begin(_ctx, transform);
             if (runner == null || runner.IsFinished) return;
             _extras.Add(runner);
             _endedAt[definition] = Time.time; // keeps the random roll from picking the same thing right away
+            request.Accepted = true;
         }
 
         private void PruneExtras()

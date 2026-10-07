@@ -71,8 +71,10 @@ namespace BuffetSim.Gambling
             string effect = entry.EffectId ?? "none";
             if (effect.StartsWith("event:"))
             {
-                GameEvents.RaiseChaosEventRequested(effect.Substring("event:".Length));
-                return entry.Summary;
+                // After close the scheduler turns requests down; the slip was right, the timing was not.
+                return GameEvents.RaiseChaosEventRequested(effect.Substring("event:".Length))
+                    ? entry.Summary
+                    : "Not tonight. The doors are closed, and whatever that was about knows it.";
             }
 
             switch (effect)
@@ -108,7 +110,8 @@ namespace BuffetSim.Gambling
                     var request = new WalletSpendRequest(amount, "a hole in your pocket", at);
                     GameEvents.RaiseWalletSpendRequested(request);
                     if (!request.Approved) return "Your pocket had nothing in it to lose. A first.";
-                    CoinPickup.Burst(at, amount, Mathf.Max(4, Mathf.RoundToInt(amount / 0.25f)), "quarters from your own pocket", null, true);
+                    // The quarters are till coins now: pick them up and the store keeps them, so the loss is real.
+                    CoinPickup.Burst(at, amount, Mathf.Max(4, Mathf.RoundToInt(amount / 0.25f)), "quarters from your own pocket");
                     break;
                 }
                 case "fast-feet":

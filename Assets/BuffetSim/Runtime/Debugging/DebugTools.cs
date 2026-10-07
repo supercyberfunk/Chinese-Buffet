@@ -50,7 +50,7 @@ namespace BuffetSim.Debugging
             if (InputReader.FunctionKeyPressed(9)) Do("Spawned a customer", () => GameEvents.RaiseCustomerSpawnRequested(1));
             if (InputReader.FunctionKeyPressed(10)) GiveCookie();
             if (InputReader.FunctionKeyPressed(11)) GiveThrowables();
-            if (InputReader.FunctionKeyPressed(12)) Do("Robbery!", () => GameEvents.RaiseChaosEventRequested(RobberyScheduler.EventId));
+            if (InputReader.FunctionKeyPressed(12)) Flash(GameEvents.RaiseChaosEventRequested(RobberyScheduler.EventId) ? "Robbery!" : "No robbery: the doors are closed");
         }
 
         private void SelectEvent(int direction)
@@ -65,7 +65,7 @@ namespace BuffetSim.Debugging
         {
             if (_eventIds.Count == 0) return;
             string id = _eventIds[_selected];
-            Do($"Started {_eventNames[_selected]}", () => GameEvents.RaiseChaosEventRequested(id));
+            Flash(GameEvents.RaiseChaosEventRequested(id) ? $"Started {_eventNames[_selected]}" : $"{_eventNames[_selected]} didn't start (doors closed, or nothing for it to do)");
         }
 
         private void GiveCookie()
